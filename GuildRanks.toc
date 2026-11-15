@@ -11,7 +11,7 @@
 ## OptionalDeps: Auctionator, TradeSkillMaster, LibDBIcon-1.0
 ## X-Category: Guild
 ## X-License: MIT
-## X-Website: https://github.com/YOUR-GITHUB-USER/guild-ranks
+## X-Website: https://github.com/SeanVella/guild-ranks
 # Fill these in once the CurseForge / Wago projects exist (used by the release workflow):
 # ## X-Curse-Project-ID: 000000
 # ## X-Wago-ID: xxxxxxxx
