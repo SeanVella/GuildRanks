@@ -53,7 +53,7 @@ function ns.PriceSourceName()
 end
 
 ---------------------------------------------------------------------------
--- LibDataBroker + minimap button (only if another addon loaded the libraries)
+-- LibDataBroker + minimap button (libraries are bundled in the release zip)
 ---------------------------------------------------------------------------
 local broker
 
@@ -81,7 +81,7 @@ ns.OnLogin(function()
 		type = "data source",
 		label = L["Guild Ranks"],
 		text = L["Guild Ranks"],
-		icon = "Interface\\Icons\\INV_Misc_Trophy_Gold",
+		icon = "Interface\\AddOns\\GuildRanks\\Media\\Icon",
 		OnClick = function(_, button)
 			if button == "RightButton" then
 				ns.UI.Toggle("settings")

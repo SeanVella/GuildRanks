@@ -32,8 +32,8 @@ itself.
 - **Privacy** — every member can switch off "Share my stats with my guild";
   their stats are then removed from guildmates' leaderboards.
 - **Integrations (optional)** — TradeSkillMaster or Auctionator auction prices
-  for loot value; LibDataBroker data text for Titan Panel, ElvUI, Bazooka and
-  others; a minimap button via LibDBIcon. All are used only if installed.
+  for loot value (used only if installed); LibDataBroker data text for Titan Panel,
+  ElvUI, Bazooka and others; a minimap button (LibDBIcon, bundled).
 - **Session bar (optional)** — a small movable bar with your rank this week, this
   session's gold and XP per hour, and time to next level.
 - **Hall of Fame** — MVP counts, best week per ranking, longest top-3 streaks and

@@ -256,7 +256,8 @@ local function TocFiles(dir)
 	local files = {}
 	for line in io.lines(dir .. "/GuildRanks.toc") do
 		line = line:gsub("\r", "")
-		if not line:match("^#") and line:match("%S") then files[#files + 1] = (line:gsub("\\", "/")) end
+		-- Bundled libraries only exist in the release zip; tests use mock libraries.
+		if not line:match("^#") and line:match("%S") and not line:match("^Libs\\") then files[#files + 1] = (line:gsub("\\", "/")) end
 	end
 	return files
 end

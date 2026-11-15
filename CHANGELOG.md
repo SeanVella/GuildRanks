@@ -3,6 +3,8 @@
 ## 1.1.0
 
 New
+- Own Guild Ranks icon, and a minimap button for everyone (LibDBIcon is now bundled;
+  drag it around the minimap, hide it with `/granks minimap`).
 - Session bar: rank this week, gold/XP per hour this session, time to level (`/granks bar`).
 - Rank-change alerts ("Kurt just passed you in Gold/h") and a weekly results popup after the reset.
 - Hall of Fame: MVP counts, best week per ranking, top-3 streaks, weekly results history;

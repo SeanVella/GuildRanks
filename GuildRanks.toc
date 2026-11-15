@@ -4,17 +4,23 @@
 ## Author: Guild Ranks contributors
 ## Version: @project-version@
 ## SavedVariables: GuildRanksDB
-## IconTexture: Interface\Icons\INV_Misc_Trophy_Gold
+## IconTexture: Interface\AddOns\GuildRanks\Media\Icon
 ## AddonCompartmentFunc: GuildRanks_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: GuildRanks_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: GuildRanks_OnAddonCompartmentLeave
 ## OptionalDeps: Auctionator, TradeSkillMaster, LibDBIcon-1.0
 ## X-Category: Guild
 ## X-License: MIT
-## X-Website: https://github.com/SeanVella/guild-ranks
+## X-Website: https://github.com/SeanVella/GuildRanks
 # Fill these in once the CurseForge / Wago projects exist (used by the release workflow):
 # ## X-Curse-Project-ID: 000000
 # ## X-Wago-ID: xxxxxxxx
+
+# Libraries (added to the release zip by the packager, see .pkgmeta)
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 Locales\enUS.lua
 Core.lua
