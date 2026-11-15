@@ -22,16 +22,18 @@ Warcraft Logs and Raider.IO do with their companion apps.
 ```
 
 1. **Addon (no change in principle):** guilds that want to compete tick a new
-   manager setting, *"Take part in the public league"*. Only then does the export
-   include a weekly guild summary for the Hub.
-2. **Companion uploader:** a small desktop tool (or the existing PowerShell script,
-   extended) uploads after each session. The addon itself never goes online.
+   manager setting, *"Take part in the public league"*. Only then does the addon
+   save a weekly guild summary for the Hub (the automatic Discord export was removed
+   in 1.1.0, so this would be new).
+2. **Companion uploader:** a small desktop tool uploads that summary after each
+   session. The addon itself never goes online.
 3. **Hub API:** stores weekly aggregates per guild (not raw daily data), merges
-   uploads from several members of the same guild (keeping the most complete copy,
-   as the GitHub template does today), and computes league standings.
+   uploads from several members of the same guild (keeping the most complete copy
+   of each player's day), and computes league standings.
 4. **Website:** realm and region league tables, guild pages, past seasons.
 5. **Discord bot:** a guild links a channel once; the bot posts the weekly results.
-   This would replace the GitHub template for guilds that prefer zero setup.
+   (Today guilds share results with **Copy for Discord**; the earlier GitHub-based
+   automatic posting was removed in 1.1.0.)
 
 ## 3. Claiming a guild (proof that you speak for it)
 
@@ -108,8 +110,8 @@ the person running the Hub becomes the **data controller**. Before launch:
 
 | Phase | What | Depends on |
 |---|---|---|
-| 0 (done) | Per-guild addon, Copy for Discord, GitHub template | — |
-| 1 | Addon: "Take part in the public league" setting; weekly guild summary in the export; message-of-the-day in export | addon release |
+| 0 (done) | Per-guild addon, Copy for Discord | — |
+| 1 | Addon: "Take part in the public league" setting; weekly guild summary and message of the day saved for the uploader | addon release |
 | 2 | Hub MVP: upload API, guild claim flow, realm/region league table website | Phase 1, privacy policy |
 | 3 | Discord bot for any guild (link a channel, weekly post) | Phase 2 |
 | 4 | Seasons, size divisions, plausibility checks, moderation tools | Phase 2 |

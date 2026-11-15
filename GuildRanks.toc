@@ -28,7 +28,6 @@ Guild.lua
 Tracker.lua
 Comm.lua
 Integrations.lua
-Export.lua
 Discord.lua
 Hall.lua
 Bar.lua

@@ -120,6 +120,8 @@ function ns.InitDB()
 	CopyDefaults(DEFAULTS, GuildRanksDB)
 	GuildRanksDB.schema = 2
 	ns.db = GuildRanksDB
+	-- Data for the removed automatic Discord posting (1.1.0 betas): no longer needed
+	ns.db.exportJSON, ns.db.exportAt, ns.db.exportError = nil, nil, nil
 	for _, g in pairs(ns.db.guilds) do
 		if type(g.rules) ~= "table" then g.rules = {} end
 		CopyDefaults(ns.DefaultRules(), g.rules)
@@ -511,7 +513,6 @@ end
 ---------------------------------------------------------------------------
 -- Guild score: overall 0-100 score from placement in 8 equally weighted
 -- categories. Only players with the minimum play time take part.
--- (bot/guild_ranks_bot.py implements the same rules for Discord.)
 ---------------------------------------------------------------------------
 ns.SCORE_CATEGORIES = {
 	{ key = "gold",   label = L["gold"] },

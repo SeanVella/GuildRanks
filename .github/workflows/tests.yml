@@ -22,6 +22,3 @@ jobs:
 
       - name: Run the simulated-guild test suite
         run: lua${{ matrix.lua }} tests/run_all.lua
-
-      - name: Addon and Discord bot compute the same scores
-        run: python3 tests/parity_test.py

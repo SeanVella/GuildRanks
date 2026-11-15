@@ -16,21 +16,19 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-61 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+62 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
 session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, announcements, version notice, integrations,
 the in-game tools and every window page. Any Lua error inside the addon fails the
-test. A parity test checks that the Discord bot computes exactly the same Guild
-scores as the addon.
+test.
 
 Run them from the repository root:
 
 ```bash
 lua5.1 tests/run_all.lua            # everything (also works with lua5.3 / texlua)
 lua5.1 tests/run_all.lua sync       # only files whose name contains "sync"
-python3 tests/parity_test.py        # after run_all: addon vs Discord bot scores
 ```
 
 GitHub Actions runs all of this on every push and pull request, on Lua 5.1 (the

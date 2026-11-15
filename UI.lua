@@ -999,9 +999,6 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.Tools.PrintLog()
 	elseif msg == "weekly" then
 		if not (ns.G() and ns.Alerts.ShowWeeklyPopup(ns.G())) then ns.Print(L["No results for last week yet."]) end
-	elseif msg == "export" then
-		ns.BuildExport()
-		ns.Print(L["Export ready. Type /reload or log out to write it to disk."])
 	elseif msg == "minimap" then
 		ns.db.ui.minimap.hide = not ns.db.ui.minimap.hide
 		local icon = _G.LibStub and _G.LibStub("LibDBIcon-1.0", true)

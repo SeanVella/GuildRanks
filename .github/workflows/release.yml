@@ -26,7 +26,6 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y lua5.1
           lua5.1 tests/run_all.lua
-          python3 tests/parity_test.py
 
       # Some libraries (see .pkgmeta externals) are fetched with Subversion.
       - name: Install Subversion

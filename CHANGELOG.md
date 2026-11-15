@@ -9,8 +9,6 @@ New
   (guild rule). Hidden play time shows as "hidden" and is left out of the Play time ranking.
 - `/granks diag` shows guild sync timing: messages waiting and time to send them, the
   last send and full sync (how long, how many messages and members), latest data per guildmate.
-- Discord automation: optional daily post every morning with yesterday's Player of the day
-  (optionally top 3, the week so far and the Wooden spoon of the day; quiet days skipped).
 - Own Guild Ranks icon, and a minimap button for everyone (LibDBIcon is now bundled;
   drag it around the minimap, hide it with `/granks minimap`).
 - Session bar: rank this week, gold/XP per hour this session, time to level (`/granks bar`).
@@ -21,7 +19,11 @@ New
 - Optional guild chat announcements: your level-ups, and last week's MVP (posted once per guild).
 - Notice when a newer version is used in your guild.
 - In-game test tools: `/granks selftest`, `/granks demo`, `/granks log`.
-- Discord bot: weekly challenge winner and guild goal in the weekly post.
+
+Removed
+- The optional automatic Discord posting through GitHub (bot, workflows, uploader) and the
+  export it read (`/granks export`). Old export data is deleted from save files.
+  Use **Copy for Discord** to share results.
 
 Fixes
 - Discord text no longer lists empty rankings (e.g. "Deaths 0.0/h" when nobody died).
@@ -35,8 +37,8 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (61 tests) on Lua 5.1 and 5.3 in GitHub Actions,
-  plus an addon/Discord bot score parity check; tests run before every release.
+- Automated simulated-guild test suite (62 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+  tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 
 ## 1.0.0 — first public release

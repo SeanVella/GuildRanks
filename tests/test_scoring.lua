@@ -101,7 +101,7 @@ test("Discord text: no empty rankings, challenge and goal lines, under Discord's
 	contains(last, "Nobody qualified yet", "empty last week")
 end)
 
-test("scores are exported for the Discord bot (parity check input)", function()
+test("mail excluded by the guild's gold rules; short sessions not ranked", function()
 	local players = {
 		Ann = { playtime = 7200, g_loot = 120000, g_mail = 500000, xp = 90000, mlevels = 900, damage = 3000000, kills = 300, quests = 8, deaths = 1, bosses = 2, dungeons = 1, gathers = 5, crafts = 2, lv_vendor = 1000, lv_auction = 9000 },
 		Bob = { playtime = 5400, g_loot = 80000, xp = 120000, mlevels = 1800, damage = 2000000, healing = 400000, kills = 250, quests = 20, deaths = 3 },
@@ -111,19 +111,14 @@ test("scores are exported for the Discord bot (parity check input)", function()
 	}
 	local c, g = GuildWith(players)
 	g.rules.gold.mail = false
-	-- put the data in last week too, so the bot's weekly post covers it
 	local lastWeekDay = c.ns.ShiftDay(c.ns.WeekStart(g), -3)
 	for _, p in pairs(g.players) do p.days[lastWeekDay] = p.days[c.ns.Today()] end
-	c.ns.BuildExport()
-	local f = io.open("tests/out/export.json", "w")
-	if f then
-		f:write(c.ns.db.exportJSON)
-		f:close()
-		local s = io.open("tests/out/lua_scores.json", "w")
-		local parts = {}
-		for _, e in ipairs(c.ns.ComputeScores(g, "lastweek", 0)) do parts[#parts + 1] = string.format('"%s":%d', e.key, e.score) end
-		s:write('{"today":"' .. c.ns.Today() .. '","scores":{' .. table.concat(parts, ",") .. "}}")
-		s:close()
-	end
-	ok(#c.ns.ComputeScores(g, "lastweek", 0) == 4, "Dee under minimum")
+	local scores = c.ns.ComputeScores(g, "lastweek", 0)
+	eq(#scores, 4, "Dee under minimum")
+	local byKey = {}
+	for _, e in ipairs(scores) do byKey[e.name] = e.score end
+	eq(byKey.Ann, 65, "Ann")
+	eq(byKey.Eve, 65, "Eve")
+	eq(byKey.Bob, 54, "Bob")
+	eq(byKey.Cid, 50, "Cid (mail gold not counted for Ann)")
 end)

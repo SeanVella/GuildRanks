@@ -102,8 +102,8 @@ Everyone's addon then uses the same rules, so everyone sees the same rankings.
 By default the Guild Master and the first officer rank can change rules; the Guild
 Master can change that.
 
-Want the results posted to Discord automatically (weekly results and a daily Player of the day)? See
-[docs/discord-automation.md](docs/discord-automation.md) (free, uses GitHub).
+To share results in Discord, press **Copy for Discord** (or type `/granks discord`)
+and paste into your channel. (WoW addons can't go online, so the addon can't post by itself.)
 
 ## What's measured, exactly
 
@@ -137,7 +137,7 @@ Want the results posted to Discord automatically (weekly results and a daily Pla
 
 ## Testing
 
-An automated simulated guild (61 scenario tests, run on Lua 5.1 and 5.3 on every
+An automated simulated guild (62 scenario tests, run on Lua 5.1 and 5.3 on every
 push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
 
 ## Contributing

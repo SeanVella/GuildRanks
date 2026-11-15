@@ -222,11 +222,18 @@ test("in-game tools: selftest passes, log records changes, demo data comes and g
 	ok(#sean.ns.BuildBoard(demo, "score", "lastweek", false, 0) >= 8, "demo leaderboard filled")
 	ok(#sean.ns.Hall.Weeks(demo) >= 3, "demo Hall of Fame filled")
 	for _, view in ipairs({ "list", "members", "settings", "hall" }) do sean.ns.UI.Show(view) end
-	sean.ns.BuildExport()
-	absent(sean.ns.db.exportJSON, "Demo Guild", "demo never exported")
 	sean:Slash("demo off")
 	eq(sean.ns.db.guilds["~demo"], nil, "demo removed")
 	sean:Slash("diag"); sean:Slash("weekly"); sean:Slash("help")
+end)
+
+test("old data from the removed Discord automation is deleted from the save file", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo", saved = { exportJSON = string.rep("x", 5000), exportAt = 1, exportError = "x" } })
+	c:Login()
+	eq(c.ns.db.exportJSON, nil, "export removed")
+	eq(c.ns.db.exportAt, nil, "time removed")
+	eq(c.ns.db.exportError, nil, "error removed")
 end)
 
 test("every window page opens for a guild, solo and another guild without errors", function()
