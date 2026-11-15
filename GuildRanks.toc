@@ -12,8 +12,8 @@
 ## X-Category: Guild
 ## X-License: MIT
 ## X-Website: https://github.com/SeanVella/GuildRanks
-# Fill these in once the CurseForge / Wago projects exist (used by the release workflow):
-# ## X-Curse-Project-ID: 000000
+# Used by the release workflow to upload to CurseForge (and Wago, once its ID is filled in):
+## X-Curse-Project-ID: 1808193
 # ## X-Wago-ID: xxxxxxxx
 
 # Libraries (added to the release zip by the packager, see .pkgmeta)

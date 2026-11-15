@@ -57,7 +57,7 @@ function ns.BuildExport()
 			local entry = {
 				key = gkey, name = g.name, realm = g.realm,
 				rules = {
-					version = r.version, resetDay = r.resetDay, minMinutes = r.minMinutes, gold = r.gold,
+					version = r.version, resetDay = r.resetDay, resetHour = r.resetHour or 0, minMinutes = r.minMinutes, gold = r.gold,
 					managerRank = r.managerRank, showSpoon = r.showSpoon, itemValue = r.itemValue,
 					excluded = excluded, by = r.by, challengeMetric = r.challengeMetric, challengePrize = r.challengePrize,
 					goalMetric = r.goalMetric, goalTarget = r.goalTarget,

@@ -162,6 +162,12 @@ def merge_exports(exports):
 # --------------------------------------------------------------------------
 # Weeks and totals
 # --------------------------------------------------------------------------
+def realm_today(now: datetime, rules) -> date:
+    """The guild's current day: a day runs from the reset hour to the same hour next day."""
+    hour = min(23, max(0, int(rules.get("resetHour") or 0)))
+    return (now - timedelta(hours=hour)).date()
+
+
 def week_start(today: date, reset_day: int) -> date:
     """reset_day uses WoW numbering: 1 = Sunday ... 7 = Saturday."""
     wow_wday = (today.weekday() + 1) % 7 + 1
@@ -499,7 +505,7 @@ def cmd_weekly(args):
         return
     guild, entries = pick_guild(exports, args.guild)
     players, rules = merge_exports(entries)
-    today = date.fromisoformat(args.today) if args.today else now.date()
+    today = date.fromisoformat(args.today) if args.today else realm_today(now, rules)
     payloads = build_weekly(players, rules, today, args.top, guild, source_note(exports, names, tz))
 
     if args.dry_run:
@@ -528,7 +534,7 @@ def cmd_preview_or_post(args):
         sys.exit("no readable files")
     guild, entries = pick_guild(exports, args.guild)
     players, rules = merge_exports(entries)
-    today = date.fromisoformat(args.today) if args.today else datetime.now(tz).date()
+    today = date.fromisoformat(args.today) if args.today else realm_today(datetime.now(tz), rules)
     payloads = build_weekly(players, rules, today, args.top, guild, source_note(exports, names, tz))
     if args.command == "preview":
         print(json.dumps(payloads, indent=2, ensure_ascii=False))

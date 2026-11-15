@@ -78,6 +78,7 @@ function ns.DefaultRules()
 	return {
 		version = 0,
 		resetDay = 4,            -- Wednesday (1 = Sunday ... 7 = Saturday)
+		resetHour = 0,           -- hour (realm time) the day and the week start; 5 = 05:00
 		minMinutes = 30,         -- minimum play time in the period to be ranked
 		gold = { loot = true, quest = true, vendor = true, ah = true, mail = true, trade = true, other = true },
 		managerRank = 1,         -- lowest rank index that may change rules (0 = Guild Master)
@@ -89,6 +90,7 @@ function ns.DefaultRules()
 		goalMetric = nil,        -- guild goal: combined weekly total of this ranking
 		goalTarget = 0,          -- guild goal target (copper for gold/loot)
 		announceMVP = false,     -- post last week's MVP in guild chat after the reset
+		showPlaytime = true,     -- false: play time is hidden for everyone (column, tooltips, ranking)
 	}
 end
 
@@ -96,6 +98,7 @@ local DEFAULTS = {
 	view = { metric = "score", period = "week", perHour = true, bracket = 0 },
 	ui = { minimap = { hide = false } },
 	share = true,                -- share my stats with my guild
+	showPlay = true,             -- let guildmates see my play time
 	guilds = {},
 	chars = {},
 }
@@ -279,25 +282,53 @@ ns.DaysFromCivil = DaysFromCivil
 
 -- Today's date on the realm. Uses the game calendar; until that has loaded,
 -- server time plus the last known realm offset (never the PC's own clock).
+-- The guild's reset hour (realm time). A "day" runs from this hour to the same hour
+-- the next day, so with 05:00 everything before 05:00 still counts for the day before.
+function ns.ResetHour(g)
+	g = g or ns.G()
+	local h = g and g.rules and tonumber(g.rules.resetHour) or 0
+	return math.min(23, math.max(0, math.floor(h)))
+end
+
+-- Realm wall-clock time as seconds since 1970 (read as UTC), or nil if unknown yet
+function ns.RealmNow()
+	local server = GetServerTime and GetServerTime()
+	if not server then return nil end
+	return server + ((ns.db and ns.db.realmOffset) or 0)
+end
+
+function ns.InvalidateToday()
+	cachedToday = nil
+end
+ns.OnGuildChanged(ns.InvalidateToday) -- another guild may use another reset hour
+
 function ns.Today()
 	local now = GetTime()
 	if not cachedToday or now - cachedAt > 15 then
+		local hour = ns.ResetHour()
 		local t = C_DateAndTime and C_DateAndTime.GetCurrentCalendarTime and C_DateAndTime.GetCurrentCalendarTime()
 		local server = GetServerTime and GetServerTime()
 		if t and t.year and t.year > 2000 then
-			cachedToday = string.format("%04d-%02d-%02d", t.year, t.month, t.monthDay)
-			cachedWday = t.weekday
+			local days = DaysFromCivil(t.year, t.month, t.monthDay)
+			local wday = t.weekday
 			if server and ns.db then
-				local realmEpoch = DaysFromCivil(t.year, t.month, t.monthDay) * 86400 + (t.hour or 0) * 3600 + (t.minute or 0) * 60
+				local realmEpoch = days * 86400 + (t.hour or 0) * 3600 + (t.minute or 0) * 60
 				ns.db.realmOffset = math.floor((realmEpoch - server) / 900 + 0.5) * 900
 			end
+			if (t.hour or 0) < hour then -- before the reset hour: still the previous day
+				days = days - 1
+				wday = (wday + 5) % 7 + 1
+			end
+			cachedToday = date("!%Y-%m-%d", days * 86400)
+			cachedWday = wday
 		elseif server then
-			local shifted = server + ((ns.db and ns.db.realmOffset) or 0)
+			local shifted = server + ((ns.db and ns.db.realmOffset) or 0) - hour * 3600
 			cachedToday = date("!%Y-%m-%d", shifted)
 			cachedWday = tonumber(date("!%w", shifted)) + 1
 		else
-			cachedToday = date("%Y-%m-%d")
-			cachedWday = tonumber(date("%w")) + 1
+			local shifted = time() - hour * 3600
+			cachedToday = date("%Y-%m-%d", shifted)
+			cachedWday = tonumber(date("%w", shifted)) + 1
 		end
 		cachedAt = now
 	end
@@ -319,6 +350,41 @@ function ns.WeekStart(g)
 	local today, wday = ns.Today()
 	local back = (wday - ((g and g.rules.resetDay) or 4)) % 7
 	return ns.ShiftDay(today, -back)
+end
+
+-- Next weekly reset as realm wall-clock seconds (read as UTC), and seconds until then.
+-- The active guild's reset hour decides the day keys, so the viewed guild uses it too.
+function ns.NextReset(g)
+	local y, m, d = ns.WeekStart(g):match("^(%d+)-(%d+)-(%d+)$")
+	if not y then return nil end
+	local at = (DaysFromCivil(tonumber(y), tonumber(m), tonumber(d)) + 7) * 86400 + ns.ResetHour() * 3600
+	local now = ns.RealmNow()
+	return at, now and math.max(0, at - now)
+end
+
+function ns.FormatCountdown(secs)
+	secs = math.max(0, math.floor(secs or 0))
+	local d, h, m = math.floor(secs / 86400), math.floor(secs % 86400 / 3600), math.floor(secs % 3600 / 60)
+	if d > 0 then return string.format("%dd %dh", d, h) end
+	if h > 0 then return string.format("%dh %dm", h, m) end
+	return string.format("%dm", m)
+end
+
+-- "Resets Wed 18 Nov, 05:00 realm time · in 2d 9h"
+function ns.ResetDescription(g)
+	local at, left = ns.NextReset(g)
+	if not at then return "" end
+	local text = string.format(ns.L["Resets %s, %02d:00 realm time"], date("!%a %d %b", at), ns.ResetHour())
+	if left then text = text .. "  ·  " .. string.format(ns.L["in %s"], ns.FormatCountdown(left)) end
+	return text
+end
+
+-- Play time privacy: hidden for everyone by guild rule, or by the player's own choice
+function ns.PlaytimeShownFor(g, key)
+	if not g or g.rules.showPlaytime == false then return false end
+	if key == ns.me then return true end
+	local p = g.players[key]
+	return not (p and p.hidePlay)
 end
 
 -- Returns a function(dayKey) -> boolean, or nil for "all"
@@ -350,7 +416,8 @@ function ns.PeriodDescription(period, g)
 	end
 	if period == "week" then
 		local t = ns.KeyToTime(ns.WeekStart(g))
-		return t and (L["since"] .. " " .. date("%a %d %b", t)) or ""
+		local hour = ns.ResetHour()
+		return t and (L["since"] .. " " .. date("%a %d %b", t) .. (hour > 0 and string.format(" %02d:00", hour) or "")) or ""
 	elseif period == "lastweek" then
 		local t = ns.KeyToTime(ns.WeekStart(g))
 		return t and (date("%a %d %b", t - 7 * 86400) .. " - " .. date("%a %d %b", t - 86400)) or ""
@@ -568,9 +635,11 @@ function ns.BuildBoard(g, metricKey, period, perHour, bracket)
 	end
 
 	local rows, unranked = {}, 0
+	local isPlaytime = metric.key == "playtime"
+	if isPlaytime and g.rules.showPlaytime == false then return rows, 0, metric, false end
 	for key, p in pairs(eligible) do
 		local lvl = p.level or 0
-		if InBracket(br, lvl) then
+		if InBracket(br, lvl) and not (isPlaytime and not ns.PlaytimeShownFor(g, key)) then
 			local b = ns.Aggregate(p, period, g)
 			local secs = b.playtime or 0
 			if secs > 0 then
@@ -599,6 +668,15 @@ end
 ---------------------------------------------------------------------------
 -- Weekly challenge and guild goal
 ---------------------------------------------------------------------------
+-- Rankings to choose from in the window (Play time is left out when the guild hides it)
+function ns.RankingChoices(g)
+	local o = {}
+	for _, m in ipairs(ns.METRICS) do
+		if m.key ~= "playtime" or not g or g.rules.showPlaytime ~= false then o[#o + 1] = { value = m.key, text = m.label } end
+	end
+	return o
+end
+
 -- Rankings that make sense as a challenge (per hour) or goal (combined total)
 function ns.ChallengeChoices()
 	local o = { { value = "", text = ns.L["No challenge"] } }

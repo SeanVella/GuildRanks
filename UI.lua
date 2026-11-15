@@ -6,7 +6,7 @@ ns.UI = UI
 
 local ROW_H = 20
 local frame, views, current = nil, {}, "list"
-local subtitle, memberCount, footerText, valueHeader, emptyText, content
+local subtitle, memberCount, resetText, footerText, valueHeader, emptyText, content
 local rows, memberRows = {}, {}
 local controls, w = {}, {}
 local CreateMain -- defined below
@@ -108,7 +108,11 @@ local function ShowRowTooltip(self)
 	local g = ns.V()
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 	GameTooltip:AddLine(ClassColored(d.key, d.class))
-	GameTooltip:AddLine(string.format(L["Level %d  ·  %s played"], d.level or 0, ns.FormatTime(d.playtime)), 0.8, 0.8, 0.8)
+	if ns.PlaytimeShownFor(g, d.key) then
+		GameTooltip:AddLine(string.format(L["Level %d  ·  %s played"], d.level or 0, ns.FormatTime(d.playtime)), 0.8, 0.8, 0.8)
+	else
+		GameTooltip:AddLine(string.format(L["Level %d"], d.level or 0), 0.8, 0.8, 0.8)
+	end
 	GameTooltip:AddLine(" ")
 	if d.cats then
 		GameTooltip:AddDoubleLine(L["Guild score"], tostring(d.score), 1, 0.82, 0, 1, 0.82, 0)
@@ -182,6 +186,10 @@ end
 
 local function RefreshList(g)
 	local v = ns.db.view
+	if v.metric == "playtime" and g.rules.showPlaytime == false then v.metric = "score" end
+	resetText:SetText(ns.ResetDescription(g))
+	local showPlayed = g.rules.showPlaytime ~= false
+	controls.playedHeader:SetShown(showPlayed)
 	local data, unranked, metric, useRate = ns.BuildBoard(g, v.metric, v.period, v.perHour, v.bracket)
 	local period = ns.PERIOD_BY_KEY[v.period] or ns.PERIODS[2]
 
@@ -231,7 +239,13 @@ local function RefreshList(g)
 		r.name:SetText(ClassColored(d.name, d.class) .. ns.Hall.Badge(g, d.key))
 		r.level:SetText(d.level or "?")
 		r.value:SetText(ns.FormatValue(metric, d.value, useRate))
-		r.played:SetText(ns.FormatTime(d.playtime))
+		if not showPlayed then
+			r.played:SetText("")
+		elseif ns.PlaytimeShownFor(g, d.key) then
+			r.played:SetText(ns.FormatTime(d.playtime))
+		else
+			r.played:SetText("|cff808080" .. L["hidden"] .. "|r")
+		end
 		if d.key == ns.me then
 			r.bg:SetColorTexture(0.2, 0.8, 0.4, 0.18)
 		else
@@ -343,7 +357,8 @@ end
 ---------------------------------------------------------------------------
 local function LoadPending(g)
 	local r = g.rules
-	local pend = { resetDay = r.resetDay, minMinutes = r.minMinutes, managerRank = r.managerRank,
+	local pend = { resetDay = r.resetDay, resetHour = r.resetHour or 0, showPlaytime = r.showPlaytime ~= false,
+		minMinutes = r.minMinutes, managerRank = r.managerRank,
 		showSpoon = r.showSpoon, itemValue = r.itemValue, announceMVP = r.announceMVP,
 		challengeMetric = r.challengeMetric or "", challengePrize = r.challengePrize or "",
 		goalMetric = r.goalMetric or "", goalTarget = r.goalTarget or 0, gold = {} }
@@ -368,6 +383,7 @@ local function RefreshSettings(g)
 	w.alerts:SetChecked(ns.db.alerts)
 	w.popup:SetChecked(ns.db.weeklyPopup)
 	w.announceLevel:SetChecked(ns.db.announceLevel)
+	w.showPlay:SetChecked(ns.db.showPlay ~= false)
 	w.info:SetText(g.demo and L["Sample data: rules can't be changed here."]
 		or (g.solo and L["You're not in a guild: rankings only include your own characters."])
 		or (can and L["You can change these rules. Saving shares them with the whole guild."])
@@ -384,13 +400,14 @@ local function RefreshSettings(g)
 		w.goalBox:SetText(target > 0 and tostring(GoalIsMoney(pend.goalMetric) and math.floor(target / 10000) or target) or "")
 	end
 	w.goalUnit:SetText(GoalIsMoney(pend.goalMetric) and L["gold"] or "")
-	for _, ctl in ipairs({ w.reset, w.itemValue, w.save, w.challenge, w.goal }) do
+	for _, ctl in ipairs({ w.reset, w.resetHour, w.itemValue, w.save, w.challenge, w.goal }) do
 		if can then ctl:Enable() else ctl:Disable() end
 	end
 	if isGM and not g.solo then w.manager:Enable() else w.manager:Disable() end
-	for _, cb in ipairs({ w.spoon, w.announceMVP }) do
+	for _, cb in ipairs({ w.spoon, w.announceMVP, w.showPlaytime }) do
 		if can then cb:Enable() else cb:Disable() end
 	end
+	w.showPlaytime:SetChecked(pend.showPlaytime)
 	w.spoon:SetChecked(pend.showSpoon)
 	w.announceMVP:SetChecked(pend.announceMVP)
 	for src, cb in pairs(w.gold) do
@@ -481,6 +498,7 @@ function UI.Refresh()
 	else
 		memberCount:SetText(isCurrent and "" or L["(one of your other characters' guilds)"])
 	end
+	resetText:SetText("")
 	if current == "settings" then
 		RefreshSettings(g)
 	elseif current == "members" then
@@ -504,7 +522,7 @@ function UI.Show(view)
 	if current == "settings" then
 		w.pendingFor = nil
 		UI.Refresh()
-		w.reset:Refresh(); w.itemValue:Refresh(); w.manager:Refresh(); w.challenge:Refresh(); w.goal:Refresh()
+		w.reset:Refresh(); w.resetHour:Refresh(); w.itemValue:Refresh(); w.manager:Refresh(); w.challenge:Refresh(); w.goal:Refresh()
 	else
 		UI.Refresh()
 	end
@@ -565,11 +583,8 @@ local function BuildList()
 	Label(v, L["Period"], 232, Y - 6)
 	Label(v, L["Level"], 362, Y - 6)
 	local view = ns.db.view
-	controls.metric = MakeDropdown(v, 200, function()
-		local o = {}
-		for _, m in ipairs(ns.METRICS) do o[#o + 1] = { value = m.key, text = m.label } end
-		return o
-	end, function() return view.metric end, function(val) view.metric = val; UI.Refresh() end)
+	controls.metric = MakeDropdown(v, 200, function() return ns.RankingChoices(ns.V()) end,
+		function() return view.metric end, function(val) view.metric = val; UI.Refresh() end)
 	controls.metric:SetPoint("TOPLEFT", 20, Y - 20)
 	controls.period = MakeDropdown(v, 120, function()
 		local o = {}
@@ -591,6 +606,7 @@ local function BuildList()
 	local h3 = FS(hdr, "GameFontNormalSmall", "CENTER"); h3:SetPoint("LEFT", 264, 0); h3:SetWidth(36); h3:SetText(L["Lvl"])
 	valueHeader = FS(hdr, "GameFontNormalSmall", "RIGHT"); valueHeader:SetPoint("LEFT", 305, 0); valueHeader:SetWidth(135)
 	local h5 = FS(hdr, "GameFontNormalSmall", "RIGHT"); h5:SetPoint("LEFT", 450, 0); h5:SetWidth(75); h5:SetText(L["Played"])
+	controls.playedHeader = h5
 
 	local _, child = MakeScroll(v, Y - 72)
 	content = child
@@ -639,24 +655,32 @@ local function BuildSettings()
 	w.popup:SetPoint("TOPLEFT", 300, -42)
 	w.announceLevel = MakeCheck(v, L["Announce my level-ups in guild chat"], function(checked) ns.db.announceLevel = checked end)
 	w.announceLevel:SetPoint("TOPLEFT", 20, -66)
+	w.showPlay = MakeCheck(v, L["Show my play time to my guild"], function(checked) ns.Comm.SetShowPlay(checked) end)
+	w.showPlay:SetPoint("TOPLEFT", 300, -66)
 
 	-- Guild rules
 	Label(v, L["Guild rules"], 22, -96, "GameFontNormal")
 	w.info = FS(v, "GameFontHighlightSmall"); w.info:SetPoint("TOPLEFT", 22, -112)
 	w.by = FS(v, "GameFontDisableSmall"); w.by:SetPoint("TOPLEFT", 22, -126)
 
-	Label(v, L["Weekly reset day"], 22, -146)
-	w.reset = MakeDropdown(v, 140, function()
+	Label(v, L["Weekly reset (realm time)"], 22, -146)
+	w.reset = MakeDropdown(v, 100, function()
 		local o = {}
 		for i, name in ipairs(ns.WEEKDAYS) do o[#o + 1] = { value = i, text = name } end
 		return o
 	end, function() return w.pending and w.pending.resetDay end, function(val) w.pending.resetDay = val end)
 	w.reset:SetPoint("TOPLEFT", 20, -160)
+	w.resetHour = MakeDropdown(v, 70, function()
+		local o = {}
+		for h = 0, 23 do o[#o + 1] = { value = h, text = string.format("%02d:00", h) } end
+		return o
+	end, function() return w.pending and w.pending.resetHour end, function(val) w.pending.resetHour = val end)
+	w.resetHour:SetPoint("TOPLEFT", 126, -160)
 
-	Label(v, L["Min. play time (minutes)"], 182, -146)
+	Label(v, L["Min. play time (min)"], 206, -146)
 	w.minBox = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
 	w.minBox:SetSize(60, 22)
-	w.minBox:SetPoint("TOPLEFT", 188, -160)
+	w.minBox:SetPoint("TOPLEFT", 212, -160)
 	w.minBox:SetAutoFocus(false)
 	w.minBox:SetNumeric(true)
 	w.minBox:SetMaxLetters(4)
@@ -679,27 +703,29 @@ local function BuildSettings()
 	end, function() return w.pending and w.pending.itemValue end, function(val) w.pending.itemValue = val end)
 	w.itemValue:SetPoint("TOPLEFT", 20, -206)
 	w.spoon = MakeCheck(v, L["Show the Wooden spoon (last place)"], function(checked) w.pending.showSpoon = checked end)
-	w.spoon:SetPoint("TOPLEFT", 300, -196)
+	w.spoon:SetPoint("TOPLEFT", 300, -188)
 	w.announceMVP = MakeCheck(v, L["Post last week's MVP in guild chat"], function(checked) w.pending.announceMVP = checked end)
-	w.announceMVP:SetPoint("TOPLEFT", 300, -220)
+	w.announceMVP:SetPoint("TOPLEFT", 300, -210)
+	w.showPlaytime = MakeCheck(v, L["Show play time (column and ranking)"], function(checked) w.pending.showPlaytime = checked end)
+	w.showPlaytime:SetPoint("TOPLEFT", 300, -232)
 
-	Label(v, L["Count gold from"], 22, -246)
+	Label(v, L["Count gold from"], 22, -258)
 	w.gold = {}
 	for i, src in ipairs(ns.GOLD_SOURCES) do
 		local cb = MakeCheck(v, ns.GOLD_SOURCE_LABELS[src], function(checked) w.pending.gold[src] = checked end)
 		local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
-		cb:SetPoint("TOPLEFT", 20 + col * 180, -260 - row * 24)
+		cb:SetPoint("TOPLEFT", 20 + col * 180, -272 - row * 24)
 		w.gold[src] = cb
 	end
 
-	Label(v, L["Weekly challenge"], 22, -338)
+	Label(v, L["Weekly challenge"], 22, -348)
 	w.challenge = MakeDropdown(v, 200, ns.ChallengeChoices, function() return w.pending and w.pending.challengeMetric end,
 		function(val) w.pending.challengeMetric = val end)
-	w.challenge:SetPoint("TOPLEFT", 20, -352)
-	Label(v, L["Prize (optional)"], 236, -338)
+	w.challenge:SetPoint("TOPLEFT", 20, -362)
+	Label(v, L["Prize (optional)"], 236, -348)
 	w.prizeBox = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
 	w.prizeBox:SetSize(200, 22)
-	w.prizeBox:SetPoint("TOPLEFT", 242, -352)
+	w.prizeBox:SetPoint("TOPLEFT", 242, -362)
 	w.prizeBox:SetAutoFocus(false)
 	w.prizeBox:SetMaxLetters(40)
 	local function readPrize(self) w.pending.challengePrize = ns.CleanText(self:GetText(), 40) end
@@ -707,14 +733,14 @@ local function BuildSettings()
 	w.prizeBox:SetScript("OnEditFocusLost", readPrize)
 	w.prizeBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-	Label(v, L["Guild goal (combined this week)"], 22, -384)
+	Label(v, L["Guild goal (combined this week)"], 22, -394)
 	w.goal = MakeDropdown(v, 200, ns.GoalChoices, function() return w.pending and w.pending.goalMetric end,
 		function(val) w.pending.goalMetric = val; UI.Refresh() end)
-	w.goal:SetPoint("TOPLEFT", 20, -398)
-	Label(v, L["Target"], 236, -384)
+	w.goal:SetPoint("TOPLEFT", 20, -408)
+	Label(v, L["Target"], 236, -394)
 	w.goalBox = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
 	w.goalBox:SetSize(100, 22)
-	w.goalBox:SetPoint("TOPLEFT", 242, -398)
+	w.goalBox:SetPoint("TOPLEFT", 242, -408)
 	w.goalBox:SetAutoFocus(false)
 	w.goalBox:SetNumeric(true)
 	w.goalBox:SetMaxLetters(9)
@@ -732,6 +758,11 @@ local function BuildSettings()
 		if g.demo then return end
 		local pend, r = w.pending, g.rules
 		r.resetDay = pend.resetDay
+		if (pend.resetHour or 0) ~= (r.resetHour or 0) then
+			r.resetHour = pend.resetHour or 0
+			ns.InvalidateToday()
+		end
+		r.showPlaytime = pend.showPlaytime ~= false
 		r.minMinutes = math.max(0, math.floor(pend.minMinutes or 0))
 		r.showSpoon = pend.showSpoon and true or false
 		r.announceMVP = pend.announceMVP and true or false
@@ -746,12 +777,12 @@ local function BuildSettings()
 		ns.Print(g.solo and L["Rules saved."] or L["Rules saved and shared with the guild."])
 		UI.Refresh()
 	end)
-	w.save:SetPoint("TOPLEFT", 20, -436)
+	w.save:SetPoint("TOPLEFT", 20, -446)
 
 	w.status = FS(v, "GameFontHighlightSmall")
 	w.status:SetWordWrap(true)
 	w.status:SetWidth(320)
-	w.status:SetPoint("TOPLEFT", 240, -432)
+	w.status:SetPoint("TOPLEFT", 240, -442)
 end
 
 local function BuildHall()
@@ -808,7 +839,9 @@ CreateMain = function()
 	end)
 	controls.guild:SetPoint("TOPLEFT", 20, -38)
 	memberCount = FS(frame, "GameFontHighlightSmall", "RIGHT")
-	memberCount:SetPoint("TOPRIGHT", -26, -44)
+	memberCount:SetPoint("TOPRIGHT", -26, -42)
+	resetText = FS(frame, "GameFontDisableSmall", "RIGHT")
+	resetText:SetPoint("TOPRIGHT", -26, -55)
 
 	subtitle = FS(frame, "GameFontHighlightSmall", "CENTER")
 	subtitle:SetPoint("TOP", 0, -68)
@@ -887,9 +920,53 @@ function ns.Diagnostics()
 			ns.FormatMoney(ns.MetricTotal(today, "loot", g))))
 		P("Players stored in this guild: " .. ns.CountPlayers(g))
 	end
+	ns.SyncDiagnostics(P)
 	local missing = {}
 	for ev in pairs(ns.unsupportedEvents) do missing[#missing + 1] = ev end
 	if #missing > 0 then P("Events not available on this client: " .. table.concat(missing, ", ")) end
+end
+
+-- Guild sync timing: how long sending and receiving take in your guild
+function ns.SyncDiagnostics(P)
+	local C, st = ns.Comm, ns.Comm.stats
+	local g = ns.G()
+	local function ago(t) return t and string.format(L["%s ago"], ns.FormatCountdown(time() - t)) or L["never"] end
+	P("---- " .. L["guild sync"] .. " ----")
+	if g then P(L["Week"] .. ": " .. ns.ResetDescription(g)) end
+	local paused = ""
+	if not C.CanSend() then
+		paused = "  ·  |cffffcc00" .. ((g and not g.solo and IsInGuild()) and (IsInInstance() and L["paused inside instances"]
+			or L["paused (chat lockdown)"]) or L["not in a guild"]) .. "|r"
+	end
+	P(string.format(L["This session: sent %d, received %d (%d relayed for offline members)"], st.sent, st.received, st.relayed))
+	local wait = C.SecondsToSend()
+	P(string.format(L["Waiting to send: %d message(s), about %s"], C.QueueLength(),
+		wait < 60 and string.format("%d s", math.ceil(wait)) or ns.FormatCountdown(wait)) .. paused)
+	if st.lastBatch then
+		P(string.format(L["Last send: %d message(s) in %d s (%s)"], st.lastBatch.n, math.floor(st.lastBatch.secs + 0.5), ago(st.lastBatch.at)))
+	end
+	local f = C.FullSyncInfo()
+	if f then
+		P(string.format(L["Last full sync: %d message(s) from %d member(s) in %d s (%s)%s"], f.msgs, f.members,
+			math.floor(f.secs + 0.5), ago(f.at), f.busy and ("  ·  " .. L["still arriving"]) or ""))
+	else
+		P(L["Last full sync: none yet (/granks sync)"])
+	end
+	if g and not g.solo then
+		local list = {}
+		for key, p in pairs(g.players) do
+			local t = math.max(p.seen or 0, p.relayedAt or 0)
+			if key ~= ns.me and t > 0 then list[#list + 1] = { key = key, t = t, relayed = (p.relayedAt or 0) > (p.seen or 0) } end
+		end
+		table.sort(list, function(a, b) return a.t > b.t end)
+		local parts = {}
+		for i = 1, math.min(8, #list) do
+			local e = list[i]
+			parts[#parts + 1] = ns.ShortName(e.key) .. " " .. ago(e.t) .. (e.relayed and (" (" .. L["relayed"] .. ")") or "")
+		end
+		P(L["Latest data from guildmates"] .. ": " .. (#parts > 0 and table.concat(parts, ", ") or L["none yet"])
+			.. (#list > 8 and string.format(L[" and %d more"], #list - 8) or ""))
+	end
 end
 
 ---------------------------------------------------------------------------

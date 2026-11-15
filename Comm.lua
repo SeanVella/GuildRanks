@@ -1,11 +1,12 @@
 -- Guild Ranks: guild sync over hidden addon messages (guild channel only, so
 -- data never leaves the guild). Numbers are sent in base 36 to keep messages short.
---   D;proto;class;level;version;YYYY-MM-DD;f1,f2,...   one day of the sender's stats
---   A;proto;class;level;version;f1,f2,...              the sender's all-time stats
+--   D;proto;class;level;version;YYYY-MM-DD;f1,f2,...[;flags]   one day of the sender's stats
+--   A;proto;class;level;version;f1,f2,...[;flags]              the sender's all-time stats
+--                                                       flags: "p" = hide my play time
 --   R;proto;full|quick                                  "please send me your data"
 --   L;proto                                             "I'm relaying offline members' data"
---   X;proto;player;class;level;version;day;f1,...       relayed day for an offline member
---   C;proto;ver;resetDay;minMin;goldMask;mgrRank;spoon;itemValue;by;challengeMetric;prize;goalMetric;goalTarget;announceMVP
+--   X;proto;player;class;level;version;day;f1,...[;flags]  relayed day for an offline member
+--   C;proto;ver;resetDay;minMin;goldMask;mgrRank;spoon;itemValue;by;challengeMetric;prize;goalMetric;goalTarget;announceMVP;resetHour;showPlaytime
 --                                                       guild rules (managers)
 --   E;proto;ver;part;parts;name,name,...                excluded players (managers)
 --   H;proto                                             "stop showing my stats"
@@ -26,6 +27,14 @@ local lastAnswer = { full = -1000, quick = -1000 }
 local lastRelay, relayClaimSeenAt = -10000, -1000
 local lastSentDay
 C.lastReceived = nil
+
+-- Sync timing for /granks diag
+local stats = {
+	sent = 0, received = 0, relayed = 0,
+	batchStart = nil, batchCount = 0, lastBatch = nil,   -- our own sending
+	full = nil, lastFull = nil,                           -- our last full sync request
+}
+C.stats = stats
 
 if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
 	C_ChatInfo.RegisterAddonMessagePrefix(ns.PREFIX)
@@ -89,6 +98,7 @@ end
 -- Send queue (paused inside instances, where addon chat is restricted)
 ---------------------------------------------------------------------------
 local function Enqueue(key, msg)
+	if #queue == 0 then stats.batchStart, stats.batchCount = GetTime(), 0 end
 	if not queued[key] then queue[#queue + 1] = key end
 	queued[key] = { msg = msg, tries = 0 }
 end
@@ -122,11 +132,46 @@ local function Pump()
 	local item = queued[key]
 	queued[key] = nil
 	if not item then return end
-	if not SendNow(item.msg) and item.tries < 3 and not queued[key] then
+	if SendNow(item.msg) then
+		stats.sent, stats.batchCount = stats.sent + 1, stats.batchCount + 1
+		stats.lastSent = time()
+		local f = stats.full
+		if key == "R" and item.msg:find("full", 1, true) and not (f and GetTime() - (f.last or f.start) < 15) then
+			stats.full = { start = GetTime(), at = time(), msgs = 0, from = {}, members = 0 }
+		end
+		if #queue == 0 and stats.batchStart then
+			stats.lastBatch = { n = stats.batchCount, secs = GetTime() - stats.batchStart, at = time() }
+			stats.batchStart = nil
+		end
+	elseif item.tries < 3 and not queued[key] then
 		item.tries = item.tries + 1
 		table.insert(queue, 1, key)
 		queued[key] = item
 	end
+end
+
+-- Seconds until everything waiting has been sent (one message per interval)
+function C.SecondsToSend()
+	return #queue * SEND_INTERVAL
+end
+
+-- Count data arriving after our full sync request (finished when quiet for 15 s)
+local function NoteData(sender)
+	stats.received = stats.received + 1
+	local f = stats.full
+	if f and GetTime() - f.start < 600 then
+		f.msgs = f.msgs + 1
+		if not f.from[sender] then f.from[sender] = true; f.members = f.members + 1 end
+		f.last = GetTime()
+	end
+end
+
+-- Last full sync: seconds it took, messages, members, still arriving?
+function C.FullSyncInfo()
+	local f = stats.full
+	if not f then return nil end
+	local busy = (GetTime() - (f.last or f.start)) < 15
+	return { secs = (f.last or f.start) - f.start, msgs = f.msgs, members = f.members, busy = busy, at = f.at }
 end
 
 ---------------------------------------------------------------------------
@@ -134,6 +179,11 @@ end
 ---------------------------------------------------------------------------
 local function Header(kind, p)
 	return string.format("%s;%d;%s;%d;%s", kind, ns.PROTO, p.class or "", p.level or 0, ns.VERSION)
+end
+
+-- Optional flags at the end of D/A messages (left out when empty, to save space)
+local function Flags()
+	return ns.db.showPlay == false and ";p" or ""
 end
 
 local function Me()
@@ -145,14 +195,14 @@ function C.QueueDay(day)
 	if not ns.db.share then return end
 	local g, p = Me()
 	if not p or not p.days[day] then return end
-	Enqueue("D" .. day, Header("D", p) .. ";" .. day .. ";" .. EncodeBucket(p.days[day]))
+	Enqueue("D" .. day, Header("D", p) .. ";" .. day .. ";" .. EncodeBucket(p.days[day]) .. Flags())
 end
 
 function C.QueueAll()
 	if not ns.db.share then return end
 	local g, p = Me()
 	if not p then return end
-	Enqueue("A", Header("A", p) .. ";" .. EncodeBucket(p.all))
+	Enqueue("A", Header("A", p) .. ";" .. EncodeBucket(p.all) .. Flags())
 end
 
 function C.QueueRecent(days)
@@ -180,7 +230,8 @@ function C.QueueRules()
 	Enqueue("C", string.format("C;%d;%s;%d;%d;%s;%d;%d;%s;%s;%s;%s;%s;%s;%d", ns.PROTO, b36(r.version), r.resetDay,
 		r.minMinutes, GoldMask(r), r.managerRank or 1, r.showSpoon and 1 or 0, r.itemValue == "auction" and "a" or "v",
 		r.by or "", r.challengeMetric or "", ns.CleanText(r.challengePrize or "", 40), r.goalMetric or "",
-		b36(r.goalTarget or 0), r.announceMVP and 1 or 0))
+		b36(r.goalTarget or 0), r.announceMVP and 1 or 0) .. string.format(";%d;%d", ns.ResetHour(g),
+		r.showPlaytime == false and 0 or 1))
 	-- Excluded players, in chunks that fit in a message
 	local names, parts, cur = {}, {}, {}
 	for name in pairs(r.excluded) do names[#names + 1] = name end
@@ -233,13 +284,20 @@ function C.QueueRelay(requester)
 	table.sort(items, function(a, b) return a.day > b.day end) -- most recent first
 	for i = 1, math.min(#items, RELAY_MAX) do
 		local it = items[i]
-		Enqueue("X" .. it.key .. it.day, string.format("X;%d;%s;%s;%d;%s;%s;%s", ns.PROTO, it.key,
-			it.p.class or "", it.p.level or 0, it.p.version or "", it.day, EncodeBucket(it.b)))
+		Enqueue("X" .. it.key .. it.day, string.format("X;%d;%s;%s;%d;%s;%s;%s%s", ns.PROTO, it.key,
+			it.p.class or "", it.p.level or 0, it.p.version or "", it.day, EncodeBucket(it.b), it.p.hidePlay and ";p" or ""))
 	end
 	return math.min(#items, RELAY_MAX)
 end
 
 -- Turn sharing on or off. Off: guildmates are asked to remove your stats.
+-- Show or hide my play time from guildmates (tells them right away)
+function C.SetShowPlay(on)
+	ns.db.showPlay = on and true or false
+	C.QueueDay(ns.Today())
+	C.QueueAll()
+end
+
 function C.SetShare(on)
 	ns.db.share = on and true or false
 	C.ClearQueue()
@@ -309,6 +367,12 @@ ReceiveRules = function(g, sender, parts)
 	r.goalMetric = (parts[13] and ns.METRIC_BY_KEY[parts[13]]) and parts[13] or nil
 	r.goalTarget = d36(parts[14]) or 0
 	r.announceMVP = parts[15] == "1"
+	local hour = math.min(23, math.max(0, math.floor(tonumber(parts[16]) or 0)))
+	if hour ~= (r.resetHour or 0) then
+		r.resetHour = hour
+		ns.InvalidateToday()
+	end
+	r.showPlaytime = parts[17] ~= "0"
 	r.excluded = {}
 	r.excludedFor = version
 	ns.Print(string.format(L["Guild rules updated by %s."], r.by))
@@ -344,6 +408,43 @@ function C.ProcessPending()
 	end
 end
 
+-- Answer a "send me your data" request. Each member answers at most once a minute;
+-- a request inside that minute is answered when the minute is up (not dropped), so
+-- two members logging in close together both get the data.
+local deferred = { full = false, quick = false }
+function C.Answer(mode, sender)
+	local requestAt = GetTime()
+	local since = requestAt - lastAnswer[mode]
+	if since <= 60 then
+		if not deferred[mode] then
+			deferred[mode] = true
+			C_Timer.After(61 - since, function()
+				deferred[mode] = false
+				C.Answer(mode, sender)
+			end)
+		end
+		return
+	end
+	lastAnswer[mode] = requestAt
+	-- Refresh the roster first, so we know who is offline before relaying
+	if mode == "full" then ns.RequestRoster() end
+	C_Timer.After(2 + math.random() * 10, function()
+		if mode == "quick" then
+			C.QueueRecent(2)
+			return
+		end
+		-- First member to answer also relays offline members' data ("L" claim)
+		local relay = relayClaimSeenAt < requestAt and GetTime() - lastRelay > RELAY_COOLDOWN and CanSend()
+		if relay then relay = SendNow("L;" .. ns.PROTO) end
+		C.QueueRecent()
+		if ns.CanEditRules() then C.QueueRules() end
+		if relay then
+			lastRelay = GetTime()
+			C.QueueRelay(sender)
+		end
+	end)
+end
+
 ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 	if prefix ~= ns.PREFIX or not ns.db then return end
 	if not (ns.Readable(text) and ns.Readable(sender)) or channel ~= "GUILD" then return end
@@ -366,33 +467,16 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 		if ns.NoteVersion then ns.NoteVersion(parts[5]) end
 		if kind == "D" then
 			if ValidDay(parts[6]) then p.days[parts[6]] = DecodeBucket(parts[7]) end
+			p.hidePlay = parts[8] == "p" or nil
 		else
 			p.all = DecodeBucket(parts[6])
+			p.hidePlay = parts[7] == "p" or nil
 		end
 		C.lastReceived = time()
+		NoteData(sender)
 		ns.MarkChanged()
 	elseif kind == "R" then
-		local mode = parts[3] == "full" and "full" or "quick"
-		local requestAt = GetTime()
-		if requestAt - lastAnswer[mode] <= 60 then return end
-		lastAnswer[mode] = requestAt
-		-- Refresh the roster first, so we know who is offline before relaying
-		if mode == "full" then ns.RequestRoster() end
-		C_Timer.After(2 + math.random() * 10, function()
-			if mode == "quick" then
-				C.QueueRecent(2)
-				return
-			end
-			-- First member to answer also relays offline members' data ("L" claim)
-			local relay = relayClaimSeenAt < requestAt and GetTime() - lastRelay > RELAY_COOLDOWN and CanSend()
-			if relay then relay = SendNow("L;" .. ns.PROTO) end
-			C.QueueRecent()
-			if ns.CanEditRules() then C.QueueRules() end
-			if relay then
-				lastRelay = GetTime()
-				C.QueueRelay(sender)
-			end
-		end)
+		C.Answer(parts[3] == "full" and "full" or "quick", sender)
 	elseif kind == "L" then
 		relayClaimSeenAt = GetTime()
 	elseif kind == "X" then
@@ -400,6 +484,10 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 		if not key or key == ns.me or not key:find("-", 1, true) or g.hidden[key] or not ValidDay(day) then return end
 		local b = DecodeBucket(parts[8])
 		local p = ns.GetPlayer(g, key, true)
+		if parts[9] == "p" then p.hidePlay = true end -- only direct messages can clear it
+		stats.relayed = stats.relayed + 1
+		NoteData(sender)
+		p.relayedAt = time()
 		local existing = p.days[day]
 		if not existing or (b.playtime or 0) > (existing.playtime or 0) then
 			p.days[day] = b
