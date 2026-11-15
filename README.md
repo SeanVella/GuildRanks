@@ -102,7 +102,7 @@ Everyone's addon then uses the same rules, so everyone sees the same rankings.
 By default the Guild Master and the first officer rank can change rules; the Guild
 Master can change that.
 
-Want the results posted to Discord automatically every week? See
+Want the results posted to Discord automatically (weekly results and a daily Player of the day)? See
 [docs/discord-automation.md](docs/discord-automation.md) (free, uses GitHub).
 
 ## What's measured, exactly

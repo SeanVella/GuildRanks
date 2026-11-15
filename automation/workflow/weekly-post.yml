@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: weekly-post
+  group: guild-ranks-state   # shared with the daily post, so state commits never clash
   cancel-in-progress: false
 
 jobs:

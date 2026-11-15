@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Guild Ranks weekly Discord post (optional automation; runs in GitHub Actions).
+"""Guild Ranks weekly and daily Discord posts (optional automation; runs in GitHub Actions).
 
 Officers' PCs upload their Guild Ranks export to uploads/ in the guild's repository.
-Every Wednesday evening a GitHub Actions workflow runs "weekly": it merges all
-uploads (keeping the most complete copy of each player's day) and posts last
-week's results, with the MVP and the Wooden spoon, to Discord.
+GitHub Actions workflows merge all uploads (keeping the most complete copy of each
+player's day) and post to Discord:
+  weekly  every Wednesday evening: last week's results, MVP and Wooden spoon
+  daily   every morning: yesterday's Player of the day (optionally top 3, the
+          week so far and the Wooden spoon of the day); skipped on quiet days
 
 Only the Python standard library is used.
 
 Commands:
   python bot/guild_ranks_bot.py weekly --guild "My Guild-Realm" [--force] [--dry-run]
+  python bot/guild_ranks_bot.py daily [--sections player,top,week,spoon] [--force] [--dry-run]
   python bot/guild_ranks_bot.py preview --sv GuildRanks.lua [--sv other.json] [--guild NAME] [--today 2026-11-18]
+  python bot/guild_ranks_bot.py preview --daily --sv GuildRanks.lua [--sections player,top]
   python bot/guild_ranks_bot.py post --sv GuildRanks.lua --webhook URL
 """
 import argparse
@@ -278,7 +282,11 @@ def award_notes(entry, entries):
 
 
 def join_words(words):
-    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+    if len(words) == 1:
+        return words[0]
+    if any(" and " in w for w in words):  # e.g. "bosses and runs": "and" would be ambiguous
+        return " \u00b7 ".join(words)
+    return ", ".join(words[:-1]) + " and " + words[-1]
 
 
 # --------------------------------------------------------------------------
@@ -408,6 +416,89 @@ def build_weekly(players, rules, today: date, top=5, guild="Guild", source_note=
 
 
 # --------------------------------------------------------------------------
+# The daily post (yesterday's results)
+# --------------------------------------------------------------------------
+DAILY_SECTIONS = ("player", "top", "week", "spoon")
+DAILY_METRICS = ("gold", "xp", "damage", "quests", "levels")
+COLOR_DAY = 0xF2B934
+
+
+def build_daily(players, rules, day: date, sections=("player",), guild="Guild", source_note="",
+                min_players=2, top=3):
+    """Payloads for one day's results, or [] when fewer than min_players qualified."""
+    scores = compute_scores(players, day, day, rules)
+    if len(scores) < max(1, min_players):
+        return []
+    played, total_secs = 0, 0
+    for p in players.values():
+        secs = period_bucket(p, day, day).get("playtime", 0)
+        if secs > 0:
+            played += 1
+            total_secs += secs
+    header = f"**<{guild}> daily results: {day.strftime('%a %d %b')}**\n{played} member{'' if played == 1 else 's'} played"
+    if rules.get("showPlaytime", True) is not False:
+        header += f" \u00b7 {fmt_time(total_secs)} in total"
+    if source_note:
+        header += f"\n-# {source_note}"
+
+    embeds = []
+    if "player" in sections:
+        best = scores[0]
+        firsts, _ = award_notes(best, scores)
+        desc = f"**{best['name']}** ({best.get('level') or '?'}) \u2014 Guild score **{best['score']}**"
+        if firsts:
+            desc += f"\n1st in {join_words(firsts)}"
+        embeds.append({"title": "\u2B50 Player of the day", "description": desc, "color": COLOR_DAY})
+    if "spoon" in sections and rules.get("showSpoon", True) and len(scores) >= 2:
+        last = scores[-1]
+        embeds.append({"title": "\U0001F944 Wooden spoon of the day", "color": COLOR_SPOON,
+                       "description": f"**{last['name']}** ({last.get('level') or '?'}) \u2014 Guild score **{last['score']}**"})
+    if "top" in sections:
+        fields = []
+        by_key = {m[0]: m for m in METRICS}
+        for key in DAILY_METRICS:
+            metric = by_key[key]
+            rows = metric_board(players, day, day, rules, metric, top)
+            if rows:
+                fields.append({"name": f"{metric[4]} {metric[1]} per hour", "inline": True,
+                               "value": board_lines(rows, lambda r, f=metric[2]: fmt_rate(f, r["value"]))})
+        if fields:
+            embeds.append({"title": f"\U0001F3C5 Top {top} of the day", "color": COLOR_BOARD, "fields": fields})
+    if "week" in sections:
+        start = week_start(day, rules.get("resetDay") or 4)  # the week the posted day belongs to
+        lines = []
+        cm = {m[0]: m for m in METRICS}.get(rules.get("challengeMetric") or "")
+        if cm:
+            rows = metric_board(players, start, day, rules, cm, 1)
+            if rows:
+                prize = f" \u00b7 Prize: {rules['challengePrize']}" if rules.get("challengePrize") else ""
+                lines.append(f"Challenge ({cm[1]} per hour): **{rows[0]['name']}** leads{prize}")
+        gm = {m[0]: m for m in METRICS}.get(rules.get("goalMetric") or "")
+        target = rules.get("goalTarget") or 0
+        if gm and target > 0:
+            total = sum(metric_total(period_bucket(p, start, day), gm[0], rules) for p in players.values())
+            fmt = (lambda v: fmt_money(v)) if gm[2] == "money" else (lambda v: f"{v:,.0f}")
+            lines.append(f"Guild goal ({gm[1]}): {fmt(total)} / {fmt(target)} ({min(100, int(100 * total / target))}%)")
+        if lines:
+            embeds.append({"title": "\U0001F3AF This week so far", "color": COLOR_BOARD, "description": "\n".join(lines)})
+
+    min_min = rules.get("minMinutes") or 0
+    note = f"Members with the addon and at least {min_min} min played that day \u00b7 tracked with Guild Ranks"
+    if embeds:
+        embeds[-1]["footer"] = {"text": note}
+        return [{"content": header, "embeds": embeds}]
+    return [{"content": header + f"\n-# {note}"}]
+
+
+def daily_target(now, post_time):
+    """Most recent daily posting slot (e.g. 09:00) at or before now."""
+    target = now.replace(hour=post_time[0], minute=post_time[1], second=0, microsecond=0)
+    if target > now:
+        target -= timedelta(days=1)
+    return target
+
+
+# --------------------------------------------------------------------------
 # Discord
 # --------------------------------------------------------------------------
 def post_discord(webhook, payloads):
@@ -520,6 +611,60 @@ def cmd_weekly(args):
     save_state(args.state, state)
 
 
+def cmd_daily(args):
+    tz = ZoneInfo(args.tz)
+    now = datetime.now(tz)
+    hh, mm = args.daily_time.split(":")
+    target = daily_target(now, (int(hh), int(mm)))
+    sections = [x.strip().lower() for x in args.sections.split(",") if x.strip().lower() in DAILY_SECTIONS]
+
+    try:
+        with open(args.state) as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+
+    if not args.force:
+        if state.get("last_target") == target.isoformat():
+            log(f"already done for the {target:%a %d %b %H:%M} slot, nothing to do")
+            return
+        if now - target > timedelta(hours=20):
+            log(f"the {target:%a %d %b %H:%M} slot is too old, skipping it")
+            if not args.dry_run:
+                state["last_target"] = target.isoformat()
+                save_state(args.state, state)
+            return
+
+    paths = sorted(glob.glob(os.path.join(args.uploads, "*.json")) + glob.glob(os.path.join(args.uploads, "*.lua")))
+    exports, names = load_files(paths)
+    if not exports:
+        log("no uploads yet, nothing to post")
+        return
+    guild, entries = pick_guild(exports, args.guild)
+    players, rules = merge_exports(entries)
+    if args.today:
+        day = date.fromisoformat(args.today) - timedelta(days=1)
+    else:
+        day = realm_today(target, rules) - timedelta(days=1)
+    payloads = build_daily(players, rules, day, sections or ("player",), guild,
+                           source_note(exports, names, tz), args.min_players)
+
+    if args.dry_run:
+        print(json.dumps(payloads, indent=2, ensure_ascii=False) if payloads else f"quiet day ({day}): nothing to post")
+        return
+    if payloads:
+        if not args.webhook:
+            sys.exit("DISCORD_WEBHOOK is not set (add it as a repository secret)")
+        post_discord(args.webhook, payloads)
+        log(f"posted daily results for {day}")
+    else:
+        log(f"quiet day ({day}): fewer than {args.min_players} members qualified, not posting")
+    state["last_target"] = target.isoformat()
+    state["day"] = day.isoformat()
+    state["posted"] = bool(payloads)
+    save_state(args.state, state)
+
+
 def save_state(path, state):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
@@ -535,7 +680,15 @@ def cmd_preview_or_post(args):
     guild, entries = pick_guild(exports, args.guild)
     players, rules = merge_exports(entries)
     today = date.fromisoformat(args.today) if args.today else realm_today(datetime.now(tz), rules)
-    payloads = build_weekly(players, rules, today, args.top, guild, source_note(exports, names, tz))
+    if args.daily:
+        sections = [x.strip().lower() for x in args.sections.split(",") if x.strip().lower() in DAILY_SECTIONS]
+        payloads = build_daily(players, rules, today - timedelta(days=1), sections or ("player",), guild,
+                               source_note(exports, names, tz), args.min_players)
+        if not payloads:
+            print(f"quiet day ({today - timedelta(days=1)}): fewer than {args.min_players} members qualified")
+            return
+    else:
+        payloads = build_weekly(players, rules, today, args.top, guild, source_note(exports, names, tz))
     if args.command == "preview":
         print(json.dumps(payloads, indent=2, ensure_ascii=False))
     else:
@@ -546,7 +699,7 @@ def cmd_preview_or_post(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Guild Ranks weekly Discord post")
+    ap = argparse.ArgumentParser(description="Guild Ranks weekly and daily Discord posts")
     sub = ap.add_subparsers(dest="command", required=True)
     w = sub.add_parser("weekly", help="post last week's results once per posting slot")
     w.add_argument("--uploads", default="uploads")
@@ -555,9 +708,16 @@ def main():
     w.add_argument("--post-time", default=os.environ.get("POST_TIME", "20:00"))
     w.add_argument("--force", action="store_true", help="post now even if this slot was already posted")
     w.add_argument("--dry-run", action="store_true", help="print the messages instead of posting")
+    d = sub.add_parser("daily", help="post yesterday's results once per day")
+    d.add_argument("--uploads", default="uploads")
+    d.add_argument("--state", default="state/daily-post.json")
+    d.add_argument("--daily-time", default=os.environ.get("DAILY_TIME") or "09:00")
+    d.add_argument("--force", action="store_true", help="post now even if today's slot was already done")
+    d.add_argument("--dry-run", action="store_true", help="print the messages instead of posting")
     for name in ("preview", "post"):
-        p = sub.add_parser(name, help=f"{name} last week's results from local files")
+        p = sub.add_parser(name, help=f"{name} last week's (or with --daily yesterday's) results from local files")
         p.add_argument("--sv", action="append", required=True, help="GuildRanks.lua or export .json (repeatable)")
+        p.add_argument("--daily", action="store_true", help="yesterday's daily post instead of the weekly one")
     for p in sub.choices.values():
         p.add_argument("--today", help="pretend today is YYYY-MM-DD (realm date)")
         p.add_argument("--tz", default=os.environ.get("TIMEZONE", "Europe/Malta"))
@@ -565,9 +725,15 @@ def main():
         p.add_argument("--webhook", default=os.environ.get("DISCORD_WEBHOOK"))
         p.add_argument("--guild", default=os.environ.get("GUILD") or None,
                        help='guild to post, e.g. "My Guild-Realm" (needed if uploads contain several)')
+        p.add_argument("--sections", default=os.environ.get("DAILY_SECTIONS") or "player",
+                       help="daily post parts, comma separated: player,top,week,spoon")
+        p.add_argument("--min-players", type=int, default=int(os.environ.get("DAILY_MIN_PLAYERS") or "2"),
+                       help="skip the daily post when fewer members qualified")
     args = ap.parse_args()
     if args.command == "weekly":
         cmd_weekly(args)
+    elif args.command == "daily":
+        cmd_daily(args)
     else:
         cmd_preview_or_post(args)
 

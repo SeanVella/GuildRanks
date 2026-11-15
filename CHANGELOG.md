@@ -9,6 +9,8 @@ New
   (guild rule). Hidden play time shows as "hidden" and is left out of the Play time ranking.
 - `/granks diag` shows guild sync timing: messages waiting and time to send them, the
   last send and full sync (how long, how many messages and members), latest data per guildmate.
+- Discord automation: optional daily post every morning with yesterday's Player of the day
+  (optionally top 3, the week so far and the Wooden spoon of the day; quiet days skipped).
 - Own Guild Ranks icon, and a minimap button for everyone (LibDBIcon is now bundled;
   drag it around the minimap, hide it with `/granks minimap`).
 - Session bar: rank this week, gold/XP per hour this session, time to level (`/granks bar`).
