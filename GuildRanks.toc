@@ -1,0 +1,31 @@
+## Interface: 16001
+## Title: Guild Ranks
+## Notes: Friendly guild competition: gold, XP, damage, quests and more per hour, an overall guild score, and a weekly MVP.
+## Author: Guild Ranks contributors
+## Version: @project-version@
+## SavedVariables: GuildRanksDB
+## IconTexture: Interface\Icons\INV_Misc_Trophy_Gold
+## AddonCompartmentFunc: GuildRanks_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: GuildRanks_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: GuildRanks_OnAddonCompartmentLeave
+## OptionalDeps: Auctionator, TradeSkillMaster, LibDBIcon-1.0
+## X-Category: Guild
+## X-License: MIT
+## X-Website: https://github.com/YOUR-GITHUB-USER/guild-ranks
+# Fill these in once the CurseForge / Wago projects exist (used by the release workflow):
+# ## X-Curse-Project-ID: 000000
+# ## X-Wago-ID: xxxxxxxx
+
+Locales\enUS.lua
+Core.lua
+Guild.lua
+Tracker.lua
+Comm.lua
+Integrations.lua
+Export.lua
+Discord.lua
+Hall.lua
+Bar.lua
+Alerts.lua
+Tools.lua
+UI.lua

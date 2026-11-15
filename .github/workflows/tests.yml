@@ -1,0 +1,27 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: ["5.1", "5.3"]   # 5.1 is what World of Warcraft uses
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua ${{ matrix.lua }}
+        run: sudo apt-get update && sudo apt-get install -y lua${{ matrix.lua }}
+
+      - name: Compile check
+        run: for f in *.lua Locales/*.lua tests/*.lua; do luac${{ matrix.lua }} -p "$f"; done
+
+      - name: Run the simulated-guild test suite
+        run: lua${{ matrix.lua }} tests/run_all.lua
+
+      - name: Addon and Discord bot compute the same scores
+        run: python3 tests/parity_test.py

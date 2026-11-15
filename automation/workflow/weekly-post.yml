@@ -1,0 +1,66 @@
+name: Guild Ranks weekly Discord post
+
+on:
+  schedule:
+    # Wednesday 18:00 and 19:00 UTC, so one run lands at 20:00 Malta time in both
+    # summer and winter. The script posts only once per week, at or after 20:00.
+    - cron: "0 18 * * 3"
+    - cron: "0 19 * * 3"
+    # Thursday catch-up in case GitHub skipped Wednesday's runs
+    - cron: "0 12 * * 4"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Post now, even if this week was already posted"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Only show the messages in the log (don't post)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Post last week's results
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          POST_DAY: ${{ vars.POST_DAY || 'wed' }}
+          POST_TIME: ${{ vars.POST_TIME || '20:00' }}
+          TIMEZONE: ${{ vars.TIMEZONE || 'Europe/Malta' }}
+          TOP_N: ${{ vars.TOP_N || '5' }}
+          GUILD: ${{ vars.GUILD }}
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          [ "$FORCE" = "true" ] && args+=(--force)
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          python bot/guild_ranks_bot.py weekly --uploads uploads --state state/weekly-post.json "${args[@]}"
+
+      - name: Save posting state
+        run: |
+          if [ -z "$(git status --porcelain state)" ]; then exit 0; fi
+          git config user.name "guild-ranks-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state
+          git commit -m "Weekly post state"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 5
+          done
+          exit 1

@@ -1,0 +1,13 @@
+package-as: GuildRanks
+
+ignore:
+  - automation
+  - tests
+  - TESTING.md
+  - docs
+  - README.md
+  - CHANGELOG.md
+  - .github
+  - .gitignore
+
+enable-nolib-creation: no
