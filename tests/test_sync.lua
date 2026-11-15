@@ -123,3 +123,19 @@ test("messages from other addons, other channels and self are ignored", function
 	for _ in pairs(p and p.days or {}) do days = days + 1 end
 	eq(days, 0, "nothing stored")
 end)
+
+test("two members logging in close together both get the guild's data (fix)", function()
+	local w = NewWorld()
+	local kurt, sean, maria = StandardGuild(w)
+	kurt:Login()
+	w:Advance(90)
+	kurt:Fire("LOOT_OPENED"); kurt:GainMoney(500); kurt:Fire("LOOT_CLOSED")
+	w:Advance(5)
+	maria:Login()
+	w:Advance(30)  -- Kurt answers Maria's sync request
+	sean:Login()   -- Sean's request comes within the same minute
+	w:Advance(150)
+	local day = kurt.ns.Today()
+	ok(maria:G().players[kurt.key] and maria:G().players[kurt.key].days[day], "Maria has Kurt's data")
+	ok(sean:G().players[kurt.key] and sean:G().players[kurt.key].days[day], "Sean has Kurt's data too")
+end)

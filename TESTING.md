@@ -16,11 +16,11 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-52 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+61 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
-session bar, alerts, weekly popup, announcements, version notice, integrations,
+session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, announcements, version notice, integrations,
 the in-game tools and every window page. Any Lua error inside the addon fails the
 test. A parity test checks that the Discord bot computes exactly the same Guild
 scores as the addon.

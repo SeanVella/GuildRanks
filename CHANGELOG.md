@@ -3,6 +3,12 @@
 ## 1.1.0
 
 New
+- Weekly reset hour: leaders choose the hour (realm time) as well as the day; the window
+  shows "Resets Wed 18 Nov, 05:00 realm time · in 2d 9h".
+- Play time privacy: "Show my play time to my guild" (personal) and "Show play time"
+  (guild rule). Hidden play time shows as "hidden" and is left out of the Play time ranking.
+- `/granks diag` shows guild sync timing: messages waiting and time to send them, the
+  last send and full sync (how long, how many messages and members), latest data per guildmate.
 - Own Guild Ranks icon, and a minimap button for everyone (LibDBIcon is now bundled;
   drag it around the minimap, hide it with `/granks minimap`).
 - Session bar: rank this week, gold/XP per hour this session, time to level (`/granks bar`).
@@ -23,9 +29,11 @@ Fixes
 - Offline members' data is relayed to every new login (relay cooldown was too long),
   and the roster is refreshed before relaying.
 - Opening a page before the main window had been shown no longer errors.
+- Two members logging in within a minute of each other both get the guild's data
+  (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (52 tests) on Lua 5.1 and 5.3 in GitHub Actions,
+- Automated simulated-guild test suite (61 tests) on Lua 5.1 and 5.3 in GitHub Actions,
   plus an addon/Discord bot score parity check; tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

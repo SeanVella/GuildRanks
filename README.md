@@ -26,11 +26,14 @@ itself.
   guilds your alts are in. Not in a guild? You still get your own stats.
 - **Members page** — who in the roster uses the addon (and which version), so you
   can invite the rest. Officers can exclude cheaters from the rankings.
-- **Guild rules, set by your leaders** — weekly reset day, minimum play time,
+- **Guild rules, set by your leaders** — weekly reset day and hour (realm time;
+  the window shows when the week resets and a countdown), minimum play time,
   which gold sources count (e.g. not mail from alts), vendor or auction prices
   for loot value. The Guild Master chooses which ranks may change them.
 - **Privacy** — every member can switch off "Share my stats with my guild";
-  their stats are then removed from guildmates' leaderboards.
+  their stats are then removed from guildmates' leaderboards. Members can also
+  hide just their play time ("Show my play time to my guild"), and leaders can
+  hide play time for everyone. Per-hour rankings still use it behind the scenes.
 - **Integrations (optional)** — TradeSkillMaster or Auctionator auction prices
   for loot value (used only if installed); LibDataBroker data text for Titan Panel,
   ElvUI, Bazooka and others; a minimap button (LibDBIcon, bundled).
@@ -82,7 +85,7 @@ competition.
 | `/granks discord` | Copy the current view for Discord |
 | `/granks sync` | Ask the guild for fresh data |
 | `/granks minimap` | Show or hide the minimap button |
-| `/granks diag` | Diagnostics for bug reports |
+| `/granks diag` | Diagnostics for bug reports, including guild sync timing (messages waiting, how long the last send and full sync took, latest data from each guildmate) |
 | `/granks selftest` | Check that everything the addon needs works on your client |
 | `/granks demo` / `demo off` | Preview the window with sample data |
 | `/granks log` | The last tracked changes and where they were counted |
@@ -92,7 +95,7 @@ their gold came from.
 
 ## For guild leaders
 
-Open **Settings** to set your guild's rules (reset day, minimum play time, gold
+Open **Settings** to set your guild's rules (reset day and hour, minimum play time, show play time, gold
 sources, loot value, Wooden spoon, weekly challenge and prize, guild goal, MVP
 announcement) and press **Save & share with guild**.
 Everyone's addon then uses the same rules, so everyone sees the same rankings.
@@ -134,7 +137,7 @@ Want the results posted to Discord automatically every week? See
 
 ## Testing
 
-An automated simulated guild (52 scenario tests, run on Lua 5.1 and 5.3 on every
+An automated simulated guild (61 scenario tests, run on Lua 5.1 and 5.3 on every
 push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
 
 ## Contributing
