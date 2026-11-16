@@ -104,6 +104,7 @@ test("rank-change alert when someone passes you (once, throttled)", function()
 	local w = NewWorld()
 	local kurt, sean = StandardGuild(w)
 	kurt:Login(); sean:Login()
+	sean.ns.db.leadCards = false -- (with lead cards on, losing first place shows a lead card instead)
 	sean:Fire("LOOT_OPENED"); sean:GainMoney(50000); sean:Fire("LOOT_CLOSED")
 	kurt:Fire("LOOT_OPENED"); kurt:GainMoney(10000); kurt:Fire("LOOT_CLOSED")
 	w:Advance(1900) -- both qualify, Sean ahead in gold

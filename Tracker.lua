@@ -8,7 +8,7 @@ local state = {
 	xp = nil, xpMax = nil, level = nil,
 	pending = nil, lastGain = nil,
 	merchant = false, mail = false, ah = false, trade = false, loot = false,
-	meterLast = {}, meterStatus = "not read yet",
+	meterLast = {}, meterReadAt = {}, meterStatus = "not read yet",
 	dirty = false,
 }
 T.state = state
@@ -280,7 +280,35 @@ end)
 ---------------------------------------------------------------------------
 -- Deaths, bosses, dungeon/raid runs
 ---------------------------------------------------------------------------
-ns.On("PLAYER_DEAD", function() ns.Add("deaths", 1) end)
+-- Deaths: the PLAYER_DEAD event, plus a check of your health state in case the event
+-- doesn't arrive (some clients). state.dead makes sure one death is counted once.
+local function IsDead()
+	if UnitIsFeignDeath and UnitIsFeignDeath("player") then return false end
+	if not UnitIsDeadOrGhost then return nil end
+	local dead = UnitIsDeadOrGhost("player")
+	if not ns.Readable(dead) then return nil end
+	return dead and true or false
+end
+
+local function CountDeath()
+	if state.dead then return end
+	state.dead = true
+	ns.Add("deaths", 1)
+end
+
+function T.CheckDeath()
+	local dead = IsDead()
+	if dead == true then CountDeath() elseif dead == false then state.dead = false end
+end
+
+ns.On("PLAYER_DEAD", CountDeath)
+ns.On("PLAYER_ALIVE", T.CheckDeath)
+ns.On("PLAYER_UNGHOST", T.CheckDeath)
+do
+	local f = CreateFrame("Frame")
+	if f.RegisterUnitEvent then pcall(f.RegisterUnitEvent, f, "UNIT_HEALTH", "player") end
+	f:SetScript("OnEvent", function() T.CheckDeath() end)
+end
 
 ns.On("ENCOUNTER_END", function(encounterID, encounterName, difficultyID, groupSize, success)
 	if not ns.Readable(success) or success ~= 1 then return end
@@ -316,49 +344,112 @@ ns.On("ZONE_CHANGED_NEW_AREA", CheckInstance)
 -- The meter is hidden from addons during combat, so we read the "Overall"
 -- total after each fight and add the difference since the last read.
 ---------------------------------------------------------------------------
+-- Your total in the "Overall" session: value, why-not, amount per second.
+-- nil when you aren't listed (e.g. right after a loading screen) — never 0 in that case,
+-- because a false 0 would make the next read count your whole total again.
 local function MeterLocalTotal(meterType)
 	if not (C_DamageMeter and C_DamageMeter.GetCombatSessionFromType and Enum
 		and Enum.DamageMeterSessionType and meterType ~= nil) then
 		return nil, "damage meter API not available"
 	end
-	local ok, result, why = pcall(function()
+	local ok, result, why, aps = pcall(function()
 		local session = C_DamageMeter.GetCombatSessionFromType(Enum.DamageMeterSessionType.Overall, meterType)
-		if session == nil then return 0 end
+		if session == nil then return nil, "no session yet" end
 		if not ns.Readable(session) then return nil, "hidden (secret value)" end
 		local sources = session.combatSources
-		if not sources then return 0 end
+		if not sources or #sources == 0 then return nil, "empty session" end
 		for i = 1, #sources do
 			local src = sources[i]
 			if src.isLocalPlayer then
 				local amt = src.totalAmount
 				if amt == nil then return 0 end
 				if not ns.Readable(amt) then return nil, "hidden (secret value)" end
-				return amt
+				local perSec = src.amountPerSecond
+				return amt, nil, (type(perSec) == "number" and ns.Readable(perSec)) and perSec or nil
 			end
 		end
-		return 0
+		return nil, "you aren't listed"
 	end)
 	if not ok then return nil, "error: " .. tostring(result) end
-	return result, why
+	return result, why, aps
 end
 T.MeterLocalTotal = MeterLocalTotal
 
+-- Healing from your own spells and talents only: potions, healthstones, bandages,
+-- food and gear/trinket heals (like Leech) don't count. Heals with their own spell ID
+-- (e.g. Prayer of Mending's heal) count when they share the name of a spell you know.
+local ownSpell = {}
+local function IsOwnSpell(id)
+	if ownSpell[id] ~= nil then return ownSpell[id] end
+	local own = false
+	if IsPlayerSpell then
+		local ok, r = pcall(IsPlayerSpell, id)
+		own = ok and r and true or false
+	end
+	if not own and C_SpellBook and C_SpellBook.IsSpellKnown then
+		local ok, r = pcall(C_SpellBook.IsSpellKnown, id)
+		own = ok and r and true or false
+	end
+	if not own then
+		local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or (GetSpellInfo and GetSpellInfo(id))
+		if name and ns.Readable(name) then
+			-- looking a spell up by name only works for spells in your spellbook
+			local info = (C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(name)) or (GetSpellInfo and GetSpellInfo(name))
+			own = info ~= nil
+		end
+	end
+	ownSpell[id] = own
+	return own
+end
+T.IsOwnSpell = IsOwnSpell
+ns.On("SPELLS_CHANGED", function() ownSpell = {} end)
+
+local function OwnHealingTotal()
+	if not (C_DamageMeter and C_DamageMeter.GetCombatSessionSourceFromType and UnitGUID) then return nil end
+	local ok, result = pcall(function()
+		local src = C_DamageMeter.GetCombatSessionSourceFromType(Enum.DamageMeterSessionType.Overall,
+			Enum.DamageMeterType.HealingDone, UnitGUID("player"))
+		if src == nil or not ns.Readable(src) or not src.combatSpells then return nil end
+		local total = 0
+		for _, sp in ipairs(src.combatSpells) do
+			local id, amt = sp.spellID, sp.totalAmount
+			if not (ns.Readable(id) and ns.Readable(amt)) then return nil end
+			if amt and amt > 0 and IsOwnSpell(id) then total = total + amt end
+		end
+		return total
+	end)
+	return ok and result or nil
+end
+
 local METER_FIELDS = { damage = "DamageDone", healing = "HealingDone" }
+local MAX_BURST = 10 -- a fight can be up to 10x your overall average per second
 
 function T.SyncMeters()
 	if not ns.me or UnitAffectingCombat("player") then return end
+	local now = GetTime()
 	for field, enumName in pairs(METER_FIELDS) do
 		local meterType = Enum and Enum.DamageMeterType and Enum.DamageMeterType[enumName]
-		local v, why = MeterLocalTotal(meterType)
+		local v, why, aps = MeterLocalTotal(meterType)
+		if field == "healing" and type(v) == "number" then
+			local own = OwnHealingTotal()
+			if own then v = own end
+		end
 		if type(v) == "number" then
 			state.meterStatus = "OK"
 			local last = state.meterLast[field]
 			if last ~= nil then
 				local d = v - last
 				if d < 0 then d = v end -- meter was reset since the last read
+				-- Safety net: never add more than this much fighting could have done since the last read
+				local since = now - (state.meterReadAt[field] or now)
+				if aps and aps > 0 and d > aps * MAX_BURST * (since + 120) then
+					state.meterCapped = (state.meterCapped or 0) + 1
+					d = 0
+				end
 				if d > 0 then ns.Add(field, d) end
 			end
 			state.meterLast[field] = v -- first read is the baseline
+			state.meterReadAt[field] = now
 		else
 			state.meterStatus = why or "unavailable"
 		end
@@ -385,6 +476,7 @@ ns.On("PLAYER_ENTERING_WORLD", function()
 		if cur then state.xp, state.xpMax, state.level = cur, max, lvl end
 	end
 	CheckInstance()
+	state.dead = IsDead() == true -- already dead when logging in: not a new death
 	C_Timer.After(3, T.SyncMeters)
 end)
 
@@ -398,6 +490,7 @@ ns.OnLogin(function()
 		-- Count active time only: skip AFK and long gaps (loading screens)
 		if dt > 0 and dt < 30 and not UnitIsAFK("player") then ns.Add("playtime", dt) end
 		ticks = ticks + 1
+		T.CheckDeath()
 		if ticks % 6 == 0 then T.SyncMeters() end -- every 30 s out of combat
 	end)
 end)

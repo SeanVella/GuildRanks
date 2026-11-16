@@ -128,7 +128,9 @@ function P.CheckRecords()
 					d.toasted = rec.key .. today
 					ns.Alerts.Toast(string.format(L["New personal best! %s: %s (was %s)"], rec.label,
 						P.FormatRecord(rec, v), P.FormatRecord(rec, r.value)))
-					session.bests[rec.label] = true
+					session.bests[rec.label] = { old = P.FormatRecord(rec, r.value), new = P.FormatRecord(rec, v) }
+				elseif session.bests[rec.label] then
+					session.bests[rec.label].new = P.FormatRecord(rec, v) -- still climbing this session
 				end
 				r.value, r.day = v, today
 			end
@@ -430,11 +432,23 @@ table.insert(ns.addHooks, function(field, amount)
 	session.totals[field] = (session.totals[field] or 0) + amount
 end)
 
+-- Your Guild score place this week: rank, number ranked (nil when not ranked)
+function P.MyRank()
+	local g = ns.G()
+	if not g or g.solo then return nil end
+	local list = ns.ComputeScores(g, "week", 0)
+	for i, e in ipairs(list) do if e.key == ns.me then return i, #list end end
+	return nil, #list
+end
+
 local function Snapshot()
 	local copyT, copyB = {}, {}
 	for k, v in pairs(session.totals) do copyT[k] = v end
-	for k in pairs(session.bests) do copyB[#copyB + 1] = k end
-	return { start = session.start, finish = time(), totals = copyT, bests = copyB }
+	for label, b in pairs(session.bests) do copyB[#copyB + 1] = { label = label, old = b.old, new = b.new } end
+	table.sort(copyB, function(a, b) return a.label < b.label end)
+	local endRank = P.MyRank()
+	return { start = session.start, finish = time(), totals = copyT, bests = copyB, level = UnitLevel("player"),
+		startRank = session.startRank, endRank = endRank }
 end
 
 function P.CurrentSession() return Snapshot() end
@@ -444,21 +458,44 @@ function P.LastSession()
 	return d and d.lastSession
 end
 
--- Lines for the recap window, plus a one-line version for guild chat
-function P.SessionLines(s)
+-- Everything the recap window shows, worked out from a session snapshot
+function P.SessionDetails(s)
 	local t = s.totals or {}
-	local gold = P.Value(t, "gold")
-	local lines = {}
-	lines[#lines + 1] = string.format("%s  ·  +%s  ·  %s %s", ns.FormatTime(t.playtime or 0), ns.FormatMoney(gold),
-		string.format("%.1f", (t.mlevels or 0) / 1000), L["levels"])
-	lines[#lines + 1] = string.format(L["%d quests  ·  %d kills  ·  %d deaths"], t.quests or 0, t.kills or 0, t.deaths or 0)
-	if (t.gathers or 0) > 0 or (t.crafts or 0) > 0 then
-		lines[#lines + 1] = string.format(L["%d gathered  ·  %d crafted"], t.gathers or 0, t.crafts or 0)
+	local secs = t.playtime or 0
+	local hours = secs / 3600
+	local gold, xp = P.Value(t, "gold"), t.xp or 0
+	local week = P.Bucket("week")
+	local wHours = (week.playtime or 0) / 3600
+	local function vs(sessionRate, weekTotal)
+		-- only compare when the week has clearly more play than this session
+		if hours <= 0 or wHours < hours + 0.5 or weekTotal <= 0 then return nil end
+		local weekRate = weekTotal / wHours
+		return math.floor((sessionRate - weekRate) / weekRate * 100 + 0.5)
 	end
-	for _, b in ipairs(s.bests or {}) do lines[#lines + 1] = "|cff40ff40" .. L["New best"] .. ": " .. b .. "|r" end
-	local chat = string.format(L["My session: %s, +%s, %.1f levels, %d quests, %d kills (Guild Ranks)"],
-		ns.FormatTime(t.playtime or 0), ns.FormatMoney(gold, true), (t.mlevels or 0) / 1000, t.quests or 0, t.kills or 0)
-	return lines, chat
+	local d = {
+		played = secs, gold = gold, xp = xp, levels = (t.mlevels or 0) / 1000, level = s.level,
+		goldph = hours > 0 and gold / hours or 0, xpph = hours > 0 and xp / hours or 0,
+		quests = t.quests or 0, kills = t.kills or 0, deaths = t.deaths or 0,
+		gathers = t.gathers or 0, crafts = t.crafts or 0,
+		rank = s.endRank, rankChange = (s.startRank and s.endRank) and (s.startRank - s.endRank) or nil,
+		bests = {},
+	}
+	d.goldVs = vs(d.goldph, P.Value(week, "gold"))
+	d.xpVs = vs(d.xpph, week.xp or 0)
+	for _, b in ipairs(s.bests or {}) do
+		if type(b) == "table" then d.bests[#d.bests + 1] = b else d.bests[#d.bests + 1] = { label = b } end
+	end
+	return d
+end
+
+-- One line for guild chat
+function P.SessionChat(s)
+	local d = P.SessionDetails(s)
+	local parts = { ns.FormatTime(d.played), "+" .. ns.FormatMoney(d.gold, true), string.format(L["+%.1f levels"], d.levels) }
+	if d.quests > 0 then parts[#parts + 1] = string.format(L["%d quests"], d.quests) end
+	if d.kills > 0 then parts[#parts + 1] = string.format(L["%d kills"], d.kills) end
+	if #d.bests > 0 then parts[#parts + 1] = string.format(L["%d new personal best(s)"], #d.bests) end
+	return L["My session"] .. ": " .. table.concat(parts, " · ") .. " (Guild Ranks)"
 end
 
 ns.On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
@@ -469,11 +506,16 @@ ns.On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
 	if isReloadingUi and pending and time() - (pending.finish or 0) < 600 then
 		-- a /reload: carry on with the same session
 		session.start = pending.start or time()
+		session.startRank = pending.startRank
 		for k, v in pairs(pending.totals or {}) do session.totals[k] = (session.totals[k] or 0) + v end
-		for _, b in ipairs(pending.bests or {}) do session.bests[b] = true end
+		for _, b in ipairs(pending.bests or {}) do
+			if type(b) == "table" then session.bests[b.label] = { old = b.old, new = b.new } end
+		end
 		return
 	end
 	session.start = session.start or time()
+	-- where you stand at the start (once the guild's data has arrived)
+	C_Timer.After(20, function() if not session.startRank then session.startRank = P.MyRank() end end)
 	if pending and ((pending.totals or {}).playtime or 0) >= 300 then
 		d.lastSession = pending
 		C_Timer.After(10, function() if ns.ShowRecap then ns.ShowRecap(pending, true) end end)

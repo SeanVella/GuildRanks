@@ -595,6 +595,7 @@ local function RefreshSettings(g)
 	w.alerts:SetChecked(ns.db.alerts)
 	w.popup:SetChecked(ns.db.weeklyPopup)
 	w.announceLevel:SetChecked(ns.db.announceLevel)
+	w.leadCards:SetChecked(ns.db.leadCards ~= false)
 	local price = ns.PriceSourceName()
 	w.status:SetText(string.format(
 		L["Addon version: %s%s\nDamage meter: %s\nAuction prices from: %s\nMessages waiting to send: %d%s"],
@@ -665,14 +666,16 @@ local function BuildSettings()
 		function(on) ns.db.weeklyPopup = on end)
 	check("announceLevel", L["Announce my level-ups in guild chat"], nil, -124,
 		function(on) ns.db.announceLevel = on end)
-	Label(you, L["About"], 22, -162, "GameFontNormal")
+	check("leadCards", L["Lead cards (you take or lose #1)"], L["An achievement-style card, with a sound, when you become #1 in a ranking this week, and a smaller one when someone takes it from you."], -148,
+		function(on) ns.db.leadCards = on end)
+	Label(you, L["About"], 22, -186, "GameFontNormal")
 	w.status = FS(you, "GameFontHighlightSmall")
 	w.status:SetWordWrap(true)
 	w.status:SetWidth(540)
 	w.status:SetSpacing(2)
-	w.status:SetPoint("TOPLEFT", 22, -180)
+	w.status:SetPoint("TOPLEFT", 22, -204)
 	local welcome = MakeButton(you, L["Show the welcome again"], 180, function() if ns.Welcome then ns.Welcome.Show(true) end end)
-	welcome:SetPoint("TOPLEFT", 20, -250)
+	welcome:SetPoint("TOPLEFT", 20, -274)
 
 	-- Guild rules
 	local rules = CreateFrame("Frame", nil, v)

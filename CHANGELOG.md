@@ -8,7 +8,13 @@ New
   (head to head plus alerts when either of you passes the other) and weekly titles for last
   week's #1 in each ranking, one of which you can show to your guild (checked by everyone's
   addon, so titles can't be faked).
-- Session recap at your next login (not after a /reload) and with `/granks recap`.
+- Session recap at your next login (not after a /reload) and with `/granks recap`: what you
+  earned (gold, XP and levels, with your rate compared with your usual this week), what you did
+  (quests, kills, deaths, gathering, crafts, guild rank and its change) and new personal bests,
+  plus a one-click post to guild chat.
+- Lead cards: an achievement-style card (with a sound) when you take #1 in a ranking this week,
+  and a grey one when someone takes it from you. Click to open that ranking. At most once a day
+  each way per ranking; turn them off in Settings → You.
 - Redesigned window: tabs (Ranks, Hall of Fame, Members, Settings), a cleaner title (the guild
   picker only appears if your characters are in several guilds) and a compact award strip that
   only shows last week's awards, the challenge and the goal when there's something to show.
@@ -44,6 +50,15 @@ Removed
   Use **Copy for Discord** to share results.
 
 Fixes
+- Healing now counts only your own spells: potions, healthstones, bandages, food, trinkets
+  and other item or racial effects on yourself are left out.
+- Damage and healing no longer jump to huge numbers after a zone change or reload (a missing
+  damage meter entry was read as 0, so the next reading counted the whole session again).
+  Impossible jumps are now ignored.
+- Deaths are also caught without the death event (checked on health changes and every few
+  seconds), counted once, and never counted for Feign Death or for being dead at login.
+- Discord deaths line: "Fewest deaths: no deaths: Ann · Sean 6 · Joe 9" with real totals
+  (it used to show per-hour rates that rounded to 0).
 - Discord text no longer lists empty rankings (e.g. "Deaths 0.0/h" when nobody died).
 - Rule updates that arrive before the guild roster has loaded are applied once it loads.
 - The realm day uses server time until the game calendar is ready (never the PC clock).
@@ -56,7 +71,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (79 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (87 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

@@ -70,6 +70,20 @@ test("minimum play time and level ranges decide who is ranked", function()
 	eq(rows[1].name, "Quick", "totals mode")
 end)
 
+test("Discord text: deaths line counts deaths, deathless players first (fix)", function()
+	local c, g = GuildWith({
+		Sean = { playtime = 7200, xp = 100, deaths = 6 },
+		Joe = { playtime = 3600, xp = 100, deaths = 9 },
+		Ann = { playtime = 3600, xp = 100 },
+	})
+	local all = table.concat(c.ns.BuildDiscordText(g, "week"), "\n")
+	contains(all, "Fewest deaths", "deaths line present")
+	contains(all, "no deaths: Ann", "deathless first")
+	contains(all, "Sean 6", "total deaths, not per hour")
+	contains(all, "Joe 9", "Joe")
+	absent(all, "Deaths/h", "old per-hour line gone")
+end)
+
 test("gold source rules and loot value source change the numbers", function()
 	local c, g = GuildWith({ A = { playtime = 3600, g_loot = 100, g_mail = 1000, lv_vendor = 5, lv_auction = 50 } })
 	local b = g.players["A-Firemaw"].days[c.ns.Today()]
@@ -91,6 +105,7 @@ test("Discord text: no empty rankings, challenge and goal lines, under Discord's
 	local all = table.concat(chunks, "\n")
 	for _, chunk in ipairs(chunks) do ok(#chunk <= 1900, "chunk under limit") end
 	absent(all, "Deaths/h", "nobody died: no deaths line")
+	absent(all, "Fewest deaths", "nobody died: no deaths line")
 	absent(all, "Healing", "nobody healed: no healing line")
 	contains(all, "Challenge leader", "challenge line")
 	contains(all, "prize: 100g", "prize")

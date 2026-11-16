@@ -181,3 +181,75 @@ test("stats before the guild is known are kept and added once it loads", functio
 	eq(sean.ns.gkey, "Froga-Firemaw", "guild resolved")
 	eq(sean:Today().g_loot, 500, "queued gold added")
 end)
+
+test("healing counts your own spells only: no potions, healthstones, bandages or Leech (fix)", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean:Login()
+	w:Advance(5)
+	sean.meter.healSpells = {
+		{ 2061, 1000 },  -- Flash Heal (your spell)
+		{ 33110, 400 },  -- Prayer of Mending heal: own spell ID, same name as the spell you know
+		{ 6262, 500 },   -- Healthstone
+		{ 441, 300 },    -- Healing Potion
+		{ 10839, 200 },  -- bandage
+		{ 143924, 100 }, -- Leech (gear)
+	}
+	sean:Fire("PLAYER_REGEN_ENABLED")
+	w:Advance(3)
+	eq(sean:Today().healing, 1400, "only Flash Heal and Prayer of Mending")
+	ok(sean.ns.Tracker.IsOwnSpell(2061), "Flash Heal is yours")
+	ok(not sean.ns.Tracker.IsOwnSpell(6262), "Healthstone isn't")
+end)
+
+test("no damage spike when the meter briefly doesn't list you (fix)", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean.meter.damage = 50000
+	sean:Login()
+	w:Advance(5)
+	sean.meter.damage = 52000
+	sean:Fire("PLAYER_REGEN_ENABLED"); w:Advance(3)
+	eq(sean:Today().damage, 2000, "normal fight")
+	sean.meter.hideLocal = true -- e.g. right after a loading screen
+	sean:Fire("PLAYER_REGEN_ENABLED"); w:Advance(3)
+	sean.meter.hideLocal = false
+	sean.meter.damage = 53000
+	sean:Fire("PLAYER_REGEN_ENABLED"); w:Advance(3)
+	eq(sean:Today().damage, 3000, "only the new 1000, not the whole 53000 again")
+end)
+
+test("an impossible jump in damage is ignored (safety net)", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean.meter.aps = 100 -- your overall average: 100 damage per second
+	sean:Login()
+	w:Advance(5)
+	sean.meter.damage = 30000 -- a believable fight
+	sean:Fire("PLAYER_REGEN_ENABLED"); w:Advance(3)
+	eq(sean:Today().damage, 30000, "counted")
+	sean.meter.damage = 30000 + 50000000 -- 50 million in a few seconds at 100/s average
+	sean:Fire("PLAYER_REGEN_ENABLED"); w:Advance(3)
+	eq(sean:Today().damage, 30000, "ignored")
+	ok((sean.ns.Tracker.state.meterCapped or 0) >= 1, "noted")
+end)
+
+test("deaths count even when the game's death event doesn't arrive, and never twice (fix)", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean:Login()
+	sean:Die(true) -- no PLAYER_DEAD event
+	w:Advance(6)
+	eq(sean:Today().deaths, 1, "noticed by the health check")
+	w:Advance(60) -- still dead / ghost
+	eq(sean:Today().deaths, 1, "counted once")
+	sean:Revive(); w:Advance(6)
+	sean:Die() -- with the event
+	w:Advance(6)
+	eq(sean:Today().deaths, 2, "event and health check together count once")
+	-- logging in while already dead isn't a new death
+	sean:Logout()
+	sean:Login()
+	w:Advance(10)
+	eq(sean:Today().deaths, 2, "no new death on login")
+end)

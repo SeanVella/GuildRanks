@@ -48,7 +48,24 @@ function ns.BuildDiscordText(g, period)
 				ns.FormatValue(gmetric, cur, false, true), ns.FormatValue(gmetric, target, false, true), math.floor(100 * cur / target))
 		end
 		for _, metric in ipairs(ns.METRICS) do
-			if metric.key ~= "score" then
+			if metric.lowerIsBetter then
+				-- Deaths as whole numbers: "no deaths: Kurt, Maria · Sean 6 · Joe 9" (nothing if nobody died)
+				local rows = ns.BuildBoard(g, metric.key, period, false, 0)
+				local clean, died = {}, {}
+				for _, r in ipairs(rows) do
+					if r.value == 0 then clean[#clean + 1] = r.name else died[#died + 1] = r end
+				end
+				if #died > 0 then
+					local parts = {}
+					if #clean > 0 then
+						local names = {}
+						for i = 1, math.min(TOP_N, #clean) do names[i] = clean[i] end
+						parts[1] = L["no deaths"] .. ": " .. table.concat(names, ", ") .. (#clean > TOP_N and (" +" .. (#clean - TOP_N)) or "")
+					end
+					for i = 1, math.min(TOP_N, #died) do parts[#parts + 1] = string.format("%s %d", died[i].name, died[i].value) end
+					lines[#lines + 1] = string.format("**%s:** %s", L["Fewest deaths"], table.concat(parts, " · "))
+				end
+			elseif metric.key ~= "score" then
 				local rows, _, _, useRate = ns.BuildBoard(g, metric.key, period, true, 0)
 				-- Skip rankings with nothing to show (e.g. nobody died)
 				local differs = false

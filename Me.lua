@@ -408,13 +408,28 @@ function MeView.Refresh(g)
 end
 
 ---------------------------------------------------------------------------
--- Session recap window
+-- Session recap window: labelled sections, rates compared with your week
 ---------------------------------------------------------------------------
 local recap
+local ICON = {
+	quests = "Interface\\Icons\\INV_Misc_Note_01", kills = "Interface\\Icons\\INV_Sword_04",
+	deaths = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull", gathers = "Interface\\Icons\\INV_Misc_Flower_02",
+	crafts = "Interface\\Icons\\Trade_BlackSmithing", rank = "Interface\\Icons\\INV_Misc_Trophy_Gold",
+	best = "Interface\\Icons\\INV_Misc_Trophy_Gold",
+}
+
+local function Tile(parent, w, h)
+	local t = CreateFrame("Frame", nil, parent)
+	t:SetSize(w, h)
+	local bg = t:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.11, 0.12, 0.14, 0.9)
+	return t
+end
+
 local function CreateRecap()
+	local FS = H().FS
 	recap = CreateFrame("Frame", "GuildRanksRecap", UIParent, "BackdropTemplate")
-	recap:SetSize(380, 170)
-	recap:SetPoint("CENTER", 0, 160)
+	recap:SetSize(460, 330)
+	recap:SetPoint("CENTER", 0, 120)
 	recap:SetFrameStrata("DIALOG")
 	recap:SetBackdrop({
 		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
@@ -427,9 +442,45 @@ local function CreateRecap()
 	recap:Hide()
 	tinsert(UISpecialFrames, "GuildRanksRecap")
 	local close = CreateFrame("Button", nil, recap, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -6, -6)
-	recap.title = H().FS(recap, "GameFontNormalLarge"); recap.title:SetPoint("TOPLEFT", 22, -18)
-	recap.body = H().FS(recap, "GameFontHighlight"); recap.body:SetPoint("TOPLEFT", 22, -44)
-	recap.body:SetWidth(336); recap.body:SetWordWrap(true); recap.body:SetSpacing(3)
+	recap.title = FS(recap, "GameFontNormalLarge"); recap.title:SetPoint("TOPLEFT", 22, -18)
+	recap.when = FS(recap, "GameFontDisableSmall", "RIGHT"); recap.when:SetPoint("TOPRIGHT", -40, -22); recap.when:SetWidth(160)
+	recap.sub = FS(recap, "GameFontDisableSmall"); recap.sub:SetPoint("TOPLEFT", 22, -40); recap.sub:SetWidth(410)
+
+	recap.earnedHead = FS(recap, "GameFontNormal"); recap.earnedHead:SetPoint("TOPLEFT", 22, -60); recap.earnedHead:SetText(L["What you earned"])
+	recap.big = {}
+	for i = 1, 3 do
+		local t = Tile(recap, 134, 54)
+		t:SetPoint("TOPLEFT", 20 + (i - 1) * 140, -78)
+		t.label = FS(t, "GameFontDisableSmall"); t.label:SetPoint("TOPLEFT", 7, -5); t.label:SetWidth(122)
+		t.value = FS(t, "GameFontHighlightLarge"); t.value:SetPoint("TOPLEFT", 7, -19); t.value:SetWidth(122)
+		t.note = FS(t, "GameFontHighlightSmall"); t.note:SetPoint("TOPLEFT", 7, -38); t.note:SetWidth(122)
+		recap.big[i] = t
+	end
+
+	recap.didHead = FS(recap, "GameFontNormal"); recap.didHead:SetPoint("TOPLEFT", 22, -142); recap.didHead:SetText(L["What you did"])
+	recap.small = {}
+	for i = 1, 6 do
+		local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
+		local t = Tile(recap, 134, 30)
+		t:SetPoint("TOPLEFT", 20 + col * 140, -160 - row * 34)
+		t.icon = t:CreateTexture(nil, "ARTWORK"); t.icon:SetPoint("LEFT", 6, 0); t.icon:SetSize(18, 18)
+		t.label = FS(t, "GameFontDisableSmall"); t.label:SetPoint("TOPLEFT", 30, -3); t.label:SetWidth(98)
+		t.value = FS(t, "GameFontHighlight"); t.value:SetPoint("TOPLEFT", 30, -15); t.value:SetWidth(98)
+		recap.small[i] = t
+	end
+
+	recap.hiHead = FS(recap, "GameFontNormal"); recap.hiHead:SetPoint("TOPLEFT", 22, -234); recap.hiHead:SetText(L["Highlights"])
+	recap.hi = {}
+	for i = 1, 4 do
+		local t = Tile(recap, 414, 32)
+		t:SetPoint("TOPLEFT", 20, -252 - (i - 1) * 36)
+		t.icon = t:CreateTexture(nil, "ARTWORK"); t.icon:SetPoint("LEFT", 6, 0); t.icon:SetSize(20, 20)
+		t.icon:SetTexture(ICON.best)
+		t.text = FS(t, "GameFontHighlight"); t.text:SetPoint("TOPLEFT", 32, -3); t.text:SetWidth(374)
+		t.note = FS(t, "GameFontDisableSmall"); t.note:SetPoint("TOPLEFT", 32, -17); t.note:SetWidth(374)
+		recap.hi[i] = t
+	end
+
 	recap.post = H().MakeButton(recap, L["Post in guild chat"], 150, function()
 		local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
 		if IsInGuild() and recap.chat and send then send(recap.chat, "GUILD") end
@@ -438,6 +489,13 @@ local function CreateRecap()
 	recap.post:SetPoint("BOTTOMLEFT", 20, 18)
 	local ok = H().MakeButton(recap, L["Close"], 80, function() recap:Hide() end)
 	ok:SetPoint("BOTTOMRIGHT", -20, 18)
+end
+
+local function VsText(pct)
+	if not pct then return nil end
+	if pct > 0 then return "|cff40ff40+" .. pct .. "% " .. L["vs usual"] .. "|r" end
+	if pct < 0 then return "|cffffaa40" .. pct .. "% " .. L["vs usual"] .. "|r" end
+	return "|cff808080" .. L["as usual"] .. "|r"
 end
 
 -- Show a session (default: this session if it has a minute of play, else the last one)
@@ -455,15 +513,59 @@ function ns.ShowRecap(s, isLast)
 		return false
 	end
 	if not recap then CreateRecap() end
-	local lines, chat = P.SessionLines(s)
-	recap.title:SetText(isLast and (L["Last session"] .. "  ·  " .. date("%a %H:%M", s.finish or time())) or L["This session so far"])
-	recap.body:SetText(table.concat(lines, "\n"))
-	recap.chat = chat
-	recap:SetHeight(110 + #lines * 16)
+	local d = P.SessionDetails(s)
+	recap.title:SetText(isLast and L["Your last session"] or L["This session so far"])
+	recap.when:SetText(date("%a %H:%M", s.finish or time()))
+	local compared = (d.goldVs or d.xpVs) and ("  ·  " .. L["compared with your average this week"]) or ""
+	recap.sub:SetText(string.format(L["%s played"], ns.FormatTime(d.played)) .. compared)
+
+	local goldNote = ns.FormatMoney(d.goldph) .. "/h" .. (d.goldVs and ("  " .. VsText(d.goldVs)) or "")
+	local xpNote = ns.FormatNumber(d.xpph) .. "/h" .. (d.xpVs and ("  " .. VsText(d.xpVs)) or "")
+	local big = {
+		{ L["Gold"], "+" .. ns.FormatMoney(d.gold), goldNote },
+		{ L["Experience"], ns.FormatNumber(d.xp), xpNote },
+		{ L["Levels"], string.format("+%.1f", d.levels), d.level and ("|cff808080" .. string.format(L["now level %d"], d.level) .. "|r") or "" },
+	}
+	for i, b in ipairs(big) do
+		recap.big[i].label:SetText(b[1]); recap.big[i].value:SetText(b[2]); recap.big[i].note:SetText(b[3])
+	end
+
+	local rankText = d.rank and ("#" .. d.rank) or "-"
+	if d.rankChange and d.rankChange > 0 then rankText = rankText .. "  |cff40ff40+" .. d.rankChange .. "|r"
+	elseif d.rankChange and d.rankChange < 0 then rankText = rankText .. "  |cffff5050" .. d.rankChange .. "|r" end
+	local small = {
+		{ ICON.quests, L["Quests"], tostring(d.quests) }, { ICON.kills, L["Kills"], tostring(d.kills) },
+		{ ICON.deaths, L["Deaths"], tostring(d.deaths) }, { ICON.gathers, L["Gathered"], tostring(d.gathers) },
+		{ ICON.crafts, L["Crafted"], tostring(d.crafts) }, { ICON.rank, L["Guild rank this week"], rankText },
+	}
+	for i, t in ipairs(small) do
+		recap.small[i].icon:SetTexture(t[1]); recap.small[i].label:SetText(t[2]); recap.small[i].value:SetText(t[3])
+	end
+
+	local n = math.min(#d.bests, #recap.hi)
+	recap.hiHead:SetShown(n > 0)
+	for i, t in ipairs(recap.hi) do
+		local b = d.bests[i]
+		t:SetShown(i <= n)
+		if b and i <= n then
+			t.text:SetText(L["New personal best"] .. ": |cffffd100" .. b.label .. "|r")
+			t.note:SetText((b.new and b.old) and string.format(L["%s (was %s)"], b.new, b.old) or "")
+		end
+	end
+	recap:SetHeight((n > 0 and 296 or 250) + n * 36)
+	recap.chat = P.SessionChat(s)
 	if IsInGuild() then recap.post:Enable() else recap.post:Disable() end
 	recap:Show()
 	return true
 end
 
-function MeView.RecapText() return recap and recap:IsShown() and recap.body:GetText() end -- for the automated tests
+function MeView.RecapText() -- for the automated tests
+	if not (recap and recap:IsShown()) then return nil end
+	local out = { recap.title:GetText(), recap.sub:GetText() }
+	for _, t in ipairs(recap.big) do out[#out + 1] = t.label:GetText() .. " " .. t.value:GetText() .. " " .. t.note:GetText() end
+	for _, t in ipairs(recap.small) do out[#out + 1] = t.label:GetText() .. " " .. t.value:GetText() end
+	for _, t in ipairs(recap.hi) do if t:IsShown() then out[#out + 1] = t.text:GetText() .. " " .. t.note:GetText() end end
+	return table.concat(out, "\n")
+end
+function MeView.RecapChat() return recap and recap.chat end -- for the automated tests
 function MeView.Internals() return el end -- for the automated tests

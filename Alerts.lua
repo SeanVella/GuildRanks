@@ -57,7 +57,9 @@ function A.CheckRanks(onlyKey)
 			above[r.key] = r
 		end
 		local prev = previous[key]
-		if myRank and prev and prev.rank and myRank > prev.rank and not alert then
+		-- losing first place gets its own lead card instead (when lead cards are on)
+		local lostLead = ns.db.leadCards ~= false and prev and prev.rank == 1
+		if myRank and prev and prev.rank and myRank > prev.rank and not alert and not lostLead then
 			for k, r in pairs(above) do
 				if not prev.above[k] then
 					alert = string.format(L["%s just passed you in %s (you're now #%d)"], r.name,
@@ -71,6 +73,132 @@ function A.CheckRanks(onlyKey)
 	if alert and GetTime() - lastAlert >= ALERT_GAP then
 		lastAlert = GetTime()
 		A.Toast(alert)
+	end
+end
+
+---------------------------------------------------------------------------
+-- Lead cards: an achievement-style card when you take first place in a ranking
+-- this week (gold, with a sound) or someone takes it from you (grey)
+---------------------------------------------------------------------------
+local LEAD = { "score", "gold", "loot", "xp", "levels", "damage", "healing", "kills", "quests", "bosses", "dungeons",
+	"gathers", "crafts", "deaths" }
+A.LEAD = LEAD
+local ICONS = {
+	score = "Interface\\Icons\\INV_Misc_Trophy_Gold", gold = "Interface\\Icons\\INV_Misc_Coin_01",
+	loot = "Interface\\Icons\\INV_Misc_Bag_10", xp = "Interface\\Icons\\Spell_Holy_SurgeOfLight",
+	levels = "Interface\\Icons\\Spell_ChargePositive", damage = "Interface\\Icons\\Ability_DualWield",
+	healing = "Interface\\Icons\\Spell_Holy_Heal", kills = "Interface\\Icons\\INV_Sword_04",
+	quests = "Interface\\Icons\\INV_Misc_Note_01", bosses = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
+	dungeons = "Interface\\Icons\\INV_Misc_Key_03", gathers = "Interface\\Icons\\INV_Misc_Flower_02",
+	crafts = "Interface\\Icons\\Trade_BlackSmithing", deaths = "Interface\\Icons\\Spell_Holy_Resurrection",
+}
+local card, cardQueue = nil, {}
+
+local function MetricName(metric)
+	if metric.key == "score" then return metric.short end
+	if metric.lowerIsBetter then return metric.label end
+	return metric.label .. (metric.rate and (" " .. L["per hour"]) or "")
+end
+
+local function ShowNextCard()
+	local item = table.remove(cardQueue, 1)
+	if not item then return end
+	if not card then
+		card = CreateFrame("Button", "GuildRanksLeadCard", UIParent, "BackdropTemplate")
+		card:SetSize(430, 64)
+		card:SetPoint("TOP", 0, -120)
+		card:SetFrameStrata("HIGH")
+		card:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+		card.icon = card:CreateTexture(nil, "ARTWORK")
+		card.icon:SetPoint("LEFT", 10, 0); card.icon:SetSize(44, 44)
+		card.kicker = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		card.kicker:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 10, 0); card.kicker:SetJustifyH("LEFT")
+		card.title = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+		card.title:SetPoint("LEFT", card.icon, "RIGHT", 10, 0); card.title:SetJustifyH("LEFT"); card.title:SetWidth(356)
+		card.sub = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		card.sub:SetPoint("BOTTOMLEFT", card.icon, "BOTTOMRIGHT", 10, 0); card.sub:SetJustifyH("LEFT"); card.sub:SetWidth(356)
+		card:SetScript("OnClick", function(self)
+			self:Hide()
+			if self.metric then
+				ns.db.view.metric, ns.db.view.period = self.metric, "week"
+				ns.db.view.guild = nil
+				ns.UI.Show("list")
+			end
+		end)
+	end
+	card.metric = item.metric
+	card.icon:SetTexture(ICONS[item.metric] or ICONS.score)
+	card.icon:SetDesaturated(not item.won)
+	card.kicker:SetText(item.won and L["New leader  ·  this week"] or "")
+	card.title:SetText(item.title)
+	card.sub:SetText(item.sub)
+	if item.won then
+		card:SetBackdropColor(0.09, 0.08, 0.04, 0.95)
+		card:SetBackdropBorderColor(0.79, 0.64, 0.15, 1)
+		card.title:SetTextColor(1, 1, 1)
+		if PlaySound then
+			local kit = (SOUNDKIT and (SOUNDKIT.UI_ACHIEVEMENT_AWARDED or SOUNDKIT.ACHIEVEMENT_MENU_OPEN)) or 12891
+			pcall(PlaySound, kit)
+		end
+	else
+		card:SetBackdropColor(0.07, 0.07, 0.07, 0.95)
+		card:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+		card.title:SetTextColor(0.85, 0.85, 0.85)
+	end
+	card:Show()
+	local shownAt = GetTime()
+	card.shownAt = shownAt
+	ns.Print(item.title .. "  ·  " .. item.sub)
+	C_Timer.After(6, function()
+		if card.shownAt == shownAt then card:Hide() end
+		ShowNextCard()
+	end)
+end
+
+local function QueueCard(item)
+	cardQueue[#cardQueue + 1] = item
+	if not (card and card:IsShown()) then ShowNextCard() end
+end
+A.QueueCard = QueueCard
+
+function A.CardText() -- for the automated tests
+	return card and card:IsShown() and (card.title:GetText() .. " | " .. card.sub:GetText()) or nil
+end
+
+-- Check who leads one ranking this week; cards when that changes to or from you
+function A.CheckLead(key)
+	local g = ns.G()
+	if not g or g.solo or not ns.me then return end
+	local week = ns.WeekStart(g)
+	if g.leadWeek ~= week then g.leadWeek, g.lead, g.leadShown = week, {}, {} end
+	g.lead, g.leadShown = g.lead or {}, g.leadShown or {}
+	local rows, _, metric, useRate = ns.BuildBoard(g, key, "week", true, 0)
+	if #rows < 2 then return end
+	local top = rows[1]
+	if rows[2].value == top.value then return end -- a tie: nobody leads alone
+	if not metric.lowerIsBetter and (top.value or 0) <= 0 then return end
+	local before = g.lead[key]
+	g.lead[key] = top.key
+	if not before or before == top.key or ns.db.leadCards == false then return end
+	local today = ns.Today()
+	local function fmt(v) return ns.FormatValue(metric, v, useRate) end
+	local name = MetricName(metric)
+	if top.key == ns.me then
+		if g.leadShown[key .. "+"] == today then return end
+		g.leadShown[key .. "+"] = today
+		local old
+		for _, r in ipairs(rows) do if r.key == before then old = r end end
+		QueueCard({ won = true, metric = key, title = string.format(L["You're #1 in %s"], name),
+			sub = fmt(top.value) .. (old and ("  ·  " .. string.format(L["you passed %s (%s)"], old.name, fmt(old.value))) or "") })
+	elseif before == ns.me then
+		if g.leadShown[key .. "-"] == today then return end
+		g.leadShown[key .. "-"] = today
+		local myRank, mine
+		for i, r in ipairs(rows) do if r.key == ns.me then myRank, mine = i, r end end
+		local gap = mine and math.abs(top.value - mine.value) or nil
+		QueueCard({ won = false, metric = key, title = string.format(L["%s took the lead in %s"], top.name, name),
+			sub = (myRank and string.format(L["You're #%d"], myRank) or "") .. (gap and ("  ·  " .. string.format(L["%s behind"], fmt(gap))) or "") })
 	end
 end
 
@@ -238,6 +366,7 @@ ns.OnInit(function()
 	if ns.db.alerts == nil then ns.db.alerts = true end
 	if ns.db.weeklyPopup == nil then ns.db.weeklyPopup = true end
 	if ns.db.announceLevel == nil then ns.db.announceLevel = false end
+	if ns.db.leadCards == nil then ns.db.leadCards = true end
 end)
 
 ns.OnGuildChanged(function()
@@ -246,10 +375,14 @@ ns.OnGuildChanged(function()
 end)
 
 ns.OnLogin(function()
-	local idx = 0
+	local idx, leadIdx = 0, 0
 	C_Timer.NewTicker(8, function()
 		idx = idx % #WATCHED + 1
 		A.CheckRanks(WATCHED[idx])
+		if not UnitAffectingCombat("player") then
+			leadIdx = leadIdx % #LEAD + 1
+			A.CheckLead(LEAD[leadIdx])
+		end
 	end)
 	-- Also catch the weekly reset while you're online
 	C_Timer.NewTicker(900, A.WeeklyCheck)

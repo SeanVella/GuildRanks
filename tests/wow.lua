@@ -190,7 +190,9 @@ function W:NewClient(o)
 	c.saved = o.saved
 	c.addons = o.addons or {}
 	c.invoiceType = nil
-	c.meter = { damage = 0, healing = 0 }
+	c.meter = { damage = 0, healing = 0, healSpells = nil, hideLocal = false }
+	c.knownSpells = { [2061] = "Flash Heal", [33076] = "Prayer of Mending" } -- spellbook (id -> name)
+	c.dead = false
 	self.clients[#self.clients + 1] = c
 	if c.guild then
 		local g = self.guilds[c.guild] or self:AddGuild(c.guild)
@@ -311,11 +313,40 @@ function Client:BuildEnv()
 	env.LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
 	env.Enum = { DamageMeterSessionType = { Overall = 0, Current = 1, Expired = 2 },
 		DamageMeterType = { DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3 } }
-	env.C_DamageMeter = { GetCombatSessionFromType = function(_, meterType)
-		local amount = (meterType == 0) and c.meter.damage or (meterType == 2) and c.meter.healing or 0
-		if c.inCombat then amount = Secret() end
-		return { combatSources = { { isLocalPlayer = false, totalAmount = 5 }, { isLocalPlayer = true, totalAmount = amount } } }
-	end }
+	-- Healing per spell: c.meter.healSpells = { { id, amount }, ... }, or all of c.meter.healing as Flash Heal
+	local function HealSpells()
+		if c.meter.healSpells then return c.meter.healSpells end
+		return { { 2061, c.meter.healing } }
+	end
+	env.C_DamageMeter = {
+		GetCombatSessionFromType = function(_, meterType)
+			local amount
+			if meterType == 2 then
+				amount = 0
+				for _, sp in ipairs(HealSpells()) do amount = amount + sp[2] end
+			else
+				amount = (meterType == 0) and c.meter.damage or 0
+			end
+			if c.inCombat then amount = Secret() end
+			local sources = { { isLocalPlayer = false, totalAmount = 5 } }
+			if not c.meter.hideLocal then sources[2] = { isLocalPlayer = true, totalAmount = amount, amountPerSecond = c.meter.aps } end
+			return { combatSources = sources }
+		end,
+		GetCombatSessionSourceFromType = function(_, meterType, guid)
+			if c.inCombat then return Secret() end
+			if c.meter.hideLocal or guid ~= "Player-" .. c.name then return nil end
+			if meterType ~= 2 then return { totalAmount = c.meter.damage, combatSpells = {} } end
+			local spells, total = {}, 0
+			for _, sp in ipairs(HealSpells()) do
+				spells[#spells + 1] = { spellID = sp[1], totalAmount = sp[2] }
+				total = total + sp[2]
+			end
+			return { totalAmount = total, combatSpells = spells }
+		end,
+	}
+	env.UnitGUID = function(unit) return unit == "player" and ("Player-" .. c.name) or nil end
+	env.IsPlayerSpell = function(id) return c.knownSpells[id] ~= nil end
+	env.UnitIsDeadOrGhost = function(unit) return unit == "player" and c.dead or false end
 	env.C_ChatInfo = {
 		RegisterAddonMessagePrefix = function(p) c.prefixes[p] = true return true end,
 		IsAddonMessagePrefixRegistered = function(p) return c.prefixes[p] == true end,
@@ -368,7 +399,21 @@ function Client:BuildEnv()
 	env.GetBuildInfo = function() return "1.60.1", "70000", "Nov 1 2026", 16001 end
 	env.GetLocale = function() return "enUS" end
 	env.IsFishingLoot = function() return c.fishing or false end
-	env.C_Spell = { GetSpellName = function(id) return ({ [2366] = "Herb Gathering", [2575] = "Mining", [8613] = "Skinning" })[id] end }
+	local SPELL_NAMES = { [2366] = "Herb Gathering", [2575] = "Mining", [8613] = "Skinning", [2061] = "Flash Heal",
+		[33076] = "Prayer of Mending", [33110] = "Prayer of Mending", [6262] = "Healthstone", [441] = "Healing Potion",
+		[10839] = "Heavy Runecloth Bandage", [143924] = "Leech" }
+	env.C_Spell = {
+		GetSpellName = function(id) return SPELL_NAMES[id] or c.knownSpells[id] end,
+		-- by name: only spells you know (like the real API)
+		GetSpellInfo = function(idOrName)
+			if type(idOrName) == "string" then
+				for _, name in pairs(c.knownSpells) do if name == idOrName then return { name = name } end end
+				return nil
+			end
+			local name = SPELL_NAMES[idOrName] or c.knownSpells[idOrName]
+			return name and { name = name, spellID = idOrName } or nil
+		end,
+	}
 	env.C_Item = {
 		GetItemInfo = function(link)
 			local id = tonumber(tostring(link):match("item:(%d+)"))
@@ -437,6 +482,17 @@ function Client:Fire(event, ...)
 			if not ok then self.world:Error(self.name .. " " .. event, err) end
 		end
 	end
+end
+
+-- Die; with noEvent the game's PLAYER_DEAD event never arrives (seen on some clients)
+function Client:Die(noEvent)
+	self.dead = true
+	if not noEvent then self:Fire("PLAYER_DEAD") end
+end
+
+function Client:Revive()
+	self.dead = false
+	self:Fire("PLAYER_ALIVE")
 end
 
 function Client:Slash(cmd)

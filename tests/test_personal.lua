@@ -172,6 +172,32 @@ test("session recap: shown at the next login, not after a /reload", function()
 	ok(c.ns.MeView.RecapText(), "recap on demand")
 end)
 
+test("session recap: labelled sections, highlights and the guild chat line", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo" })
+	c:Login()
+	Loot(c, 32000)
+	c:GainXP(5000)
+	w:Advance(600)
+	ok(c.ns.ShowRecap(), "recap opens for the current session")
+	local plain = c.ns.MeView.RecapText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+	contains(plain, "This session so far", "title")
+	contains(plain, "played", "play time line")
+	contains(plain, "Gold +3g 20s", "gold tile")
+	contains(plain, "/h", "per hour rate")
+	contains(plain, "Experience 5,000", "xp tile")
+	for _, label in ipairs({ "Quests", "Kills", "Deaths", "Gathered", "Crafted", "Guild rank" }) do
+		contains(plain, label, label .. " tile")
+	end
+	local chat = c.ns.MeView.RecapChat()
+	ok(chat and #chat <= 255, "chat line fits one message")
+	contains(chat, "3g 20s", "chat has gold")
+	local d = c.ns.Personal.SessionDetails(c.ns.Personal.CurrentSession())
+	eq(d.gold, 32000, "details: gold")
+	eq(d.xp, 5000, "details: xp")
+	eq(d.goldVs, nil, "no comparison when the week is just this session")
+end)
+
 test("Me tab: stats, chart, goal form, bests, rival and titles without errors", function()
 	local w, kurt, sean, maria, g = LastWeekGuild()
 	local ns = sean.ns
@@ -241,4 +267,47 @@ test("you can't pick yourself or one of your alts as rival, however the name is 
 	absent(list, "Seanalt", "alt not offered")
 	absent(list, "Sean,", "you aren't offered")
 	ok(not list:find("Sean$"), "you aren't offered (end)")
+end)
+
+test("lead cards: gold card when you take #1, grey card when you lose it, once a day each", function()
+	local w = NewWorld()
+	local kurt, sean = StandardGuild(w)
+	sean:Login() -- (Kurt stays offline so his real client doesn't sync over the numbers set here)
+	local g, ns = sean:G(), sean.ns
+	local A = ns.Alerts
+	local today = ns.Today()
+	ns.GetPlayer(g, kurt.key, true).days[today] = { playtime = 3600, g_loot = 50000 }
+	ns.GetPlayer(g, sean.key, true).days[today] = { playtime = 3600, g_loot = 20000 }
+	A.CheckLead("gold")
+	eq(A.CardText(), nil, "first look: just remembers Kurt leads")
+	ns.GetPlayer(g, sean.key).days[today].g_loot = 90000
+	A.CheckLead("gold")
+	local text = A.CardText()
+	ok(text, "card shown")
+	contains(text, "You're #1 in Gold earned per hour", "title")
+	contains(text, "you passed Kurt", "who you passed")
+	w:Advance(7)
+	eq(A.CardText(), nil, "gone after a few seconds")
+	-- Kurt takes it back: grey card
+	ns.GetPlayer(g, kurt.key).days[today].g_loot = 200000
+	A.CheckLead("gold")
+	contains(A.CardText(), "Kurt took the lead in Gold earned per hour", "lost the lead")
+	contains(A.CardText(), "You're #2", "your place")
+	w:Advance(7)
+	-- and again the same day: no second gold card
+	ns.GetPlayer(g, sean.key).days[today].g_loot = 400000
+	A.CheckLead("gold")
+	eq(A.CardText(), nil, "once a day")
+	-- ties: nobody leads alone
+	ns.GetPlayer(g, kurt.key).days[today].g_loot = 400000
+	A.CheckLead("gold")
+	eq(A.CardText(), nil, "no card on a tie")
+	-- off in settings
+	ns.db.leadCards = false
+	ns.GetPlayer(g, kurt.key).days[today].quests = 9
+	ns.GetPlayer(g, sean.key).days[today].quests = 1
+	A.CheckLead("quests")
+	ns.GetPlayer(g, sean.key).days[today].quests = 20
+	A.CheckLead("quests")
+	eq(A.CardText(), nil, "no cards when switched off")
 end)

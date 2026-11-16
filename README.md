@@ -30,8 +30,11 @@ itself.
   toast, a **rival** to race (head to head, with an alert when either of you passes
   the other) and **weekly titles** earned by finishing #1 in a ranking (Gold Baron,
   Quest Machine, Slayer, Iron Man...), which you can show to your guild.
-- **Session recap** — a short summary of your last session when you log in again
-  (or anytime with `/granks recap`), ready to post in guild chat.
+- **Session recap** — when you log in again (or anytime with `/granks recap`): what
+  you earned and how that compares with your usual rate this week, what you did,
+  your guild rank and any new personal bests, with a button to post it in guild chat.
+- **Lead cards** — an achievement-style card with a sound when you take #1 in a
+  ranking this week, and a heads-up when someone takes it from you.
 - **Weekly MVP and Wooden spoon** — shown in game, in the minimap/data-text tooltip
   and in the Discord post. Guilds can turn the Wooden spoon off.
 - **Copy for Discord** — results as ready-to-paste Discord text. No setup.
@@ -130,7 +133,7 @@ and paste into your channel. (WoW addons can't go online, so the addon can't pos
 | Gold earned | Money gained, split by source: loot, quests, vendor, Auction House, mail, trade, other. Spending isn't subtracted. |
 | Loot value | Value of items you loot: vendor price, or TSM/Auctionator price if your guild chooses auction prices. |
 | Experience / Levels gained | XP gained; "levels gained" is fair across levels (1.0 = one full level). |
-| Damage / Healing | From Blizzard's built-in damage meter, read after each fight. |
+| Damage / Healing | From Blizzard's built-in damage meter, read after each fight. Healing counts only your own spells (no potions, healthstones, bandages, trinkets or other item effects). |
 | Kills | Kills that give XP (not inside instances or at max level). |
 | Quests / Deaths | Quest turn-ins; your deaths (fewest wins). |
 | Bosses / Runs | Boss kills; a dungeon or raid run counts once you kill a boss there. |
@@ -155,7 +158,7 @@ and paste into your channel. (WoW addons can't go online, so the addon can't pos
 
 ## Testing
 
-An automated simulated guild (79 scenario tests, run on Lua 5.1 and 5.3 on every
+An automated simulated guild (87 scenario tests, run on Lua 5.1 and 5.3 on every
 push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
 
 ## Contributing
