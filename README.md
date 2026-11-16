@@ -14,7 +14,11 @@ itself.
 - **Leaderboards for 14 rankings** — Guild score, gold earned, loot value, XP,
   levels gained, damage, healing, kills, quests, bosses, dungeon/raid runs,
   gathering, crafting, fewest deaths and play time. Per hour or totals; today,
-  this week, last week, this month or all time; filter by level range.
+  this week, last week, this month or all time; filter by level range. The most
+  used rankings are one click away, with score bars and each player's rank change
+  since last week (+2, -1, new).
+- **Player cards** — click a name for their Guild score broken down by category,
+  every stat (total and per hour), gold by source and their recent weeks.
 - **Guild score (0-100)** — placement across 8 equally weighted categories (gold,
   levels gained, combat, quests, kills, bosses and runs, gathering and crafting,
   fewest deaths). Fair by design: per hour of play, healers ranked on healing,
@@ -25,7 +29,8 @@ itself.
 - **Automatic guild detection** — your data is kept per guild; switch between the
   guilds your alts are in. Not in a guild? You still get your own stats.
 - **Members page** — who in the roster uses the addon (and which version), so you
-  can invite the rest. Officers can exclude cheaters from the rankings.
+  can invite the rest with the **Invite** button (posts an install message in guild
+  chat, or copy it for Discord). Officers can exclude cheaters from the rankings.
 - **Guild rules, set by your leaders** — weekly reset day and hour (realm time;
   the window shows when the week resets and a countdown), minimum play time,
   which gold sources count (e.g. not mail from alts), vendor or auction prices
@@ -83,6 +88,8 @@ competition.
 | `/granks weekly` | Show last week's results popup again |
 | `/granks settings` | Settings and guild rules |
 | `/granks discord` | Copy the current view for Discord |
+| `/granks invite` | Invite guildmates: post or copy an install message |
+| `/granks welcome` | Show the welcome screen again |
 | `/granks sync` | Ask the guild for fresh data |
 | `/granks minimap` | Show or hide the minimap button |
 | `/granks diag` | Diagnostics for bug reports, including guild sync timing (messages waiting, how long the last send and full sync took, latest data from each guildmate) |
@@ -90,12 +97,12 @@ competition.
 | `/granks demo` / `demo off` | Preview the window with sample data |
 | `/granks log` | The last tracked changes and where they were counted |
 
-Hover any name for that player's Guild score breakdown, every stat, and where
-their gold came from.
+Click any name for that player's card: Guild score breakdown, every stat, where
+their gold came from and their recent weeks.
 
 ## For guild leaders
 
-Open **Settings** to set your guild's rules (reset day and hour, minimum play time, show play time, gold
+Open **Settings → Guild rules** to set your guild's rules (reset day and hour, minimum play time, show play time, gold
 sources, loot value, Wooden spoon, weekly challenge and prize, guild goal, MVP
 announcement) and press **Save & share with guild**.
 Everyone's addon then uses the same rules, so everyone sees the same rankings.
@@ -137,7 +144,7 @@ and paste into your channel. (WoW addons can't go online, so the addon can't pos
 
 ## Testing
 
-An automated simulated guild (62 scenario tests, run on Lua 5.1 and 5.3 on every
+An automated simulated guild (70 scenario tests, run on Lua 5.1 and 5.3 on every
 push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
 
 ## Contributing

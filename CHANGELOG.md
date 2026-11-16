@@ -3,6 +3,16 @@
 ## 1.1.0
 
 New
+- Redesigned window: tabs (Ranks, Hall of Fame, Members, Settings), a cleaner title (the guild
+  picker only appears if your characters are in several guilds) and a compact award strip that
+  only shows last week's awards, the challenge and the goal when there's something to show.
+- One-click ranking chips (Score, Gold, XP, Damage, Quests, plus More rankings), score bars,
+  and each player's rank change since the previous period (+2, -1, new).
+- Player cards: click a name for the score breakdown, all stats, gold by source and recent weeks.
+- Invite button: post an install message in guild chat or copy it for Discord (`/granks invite`).
+- Settings split into "You" and "Guild rules"; members see a plain summary of the rules,
+  officers get tooltips, "Unsaved changes", Save and Discard.
+- First-time welcome with a sample-data preview (`/granks welcome`), and friendlier empty states.
 - Weekly reset hour: leaders choose the hour (realm time) as well as the day; the window
   shows "Resets Wed 18 Nov, 05:00 realm time · in 2d 9h".
 - Play time privacy: "Show my play time to my guild" (personal) and "Show play time"
@@ -37,7 +47,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (62 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (70 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

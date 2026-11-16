@@ -34,3 +34,4 @@ Bar.lua
 Alerts.lua
 Tools.lua
 UI.lua
+Panels.lua

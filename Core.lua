@@ -669,6 +669,51 @@ end
 ---------------------------------------------------------------------------
 -- Weekly challenge and guild goal
 ---------------------------------------------------------------------------
+-- The period to compare with for rank changes ("vs last week"), or nil
+function ns.PreviousPeriod(period, g)
+	local today = ns.Today()
+	if period == "today" then
+		return { from = ns.ShiftDay(today, -1), to = today }
+	elseif period == "week" then
+		return "lastweek"
+	elseif period == "lastweek" then
+		local start = ns.WeekStart(g)
+		return { from = ns.ShiftDay(start, -14), to = ns.ShiftDay(start, -7) }
+	elseif period == "month" then
+		local y, m = today:match("^(%d+)-(%d+)")
+		y, m = tonumber(y), tonumber(m)
+		local py, pm = (m == 1) and (y - 1) or y, (m == 1) and 12 or (m - 1)
+		return { from = string.format("%04d-%02d-01", py, pm), to = string.format("%04d-%02d-01", y, m) }
+	end
+	return nil
+end
+
+-- Rank changes against the previous period: key -> number of places moved up
+-- (negative = down, 0 = same), or "new" for players not ranked last time.
+-- Empty when there's nothing to compare with.
+function ns.RankChanges(g, rows, metricKey, period, perHour, bracket)
+	local prevPeriod = ns.PreviousPeriod(period, g)
+	if not prevPeriod then return {} end
+	local prev = ns.BuildBoard(g, metricKey, prevPeriod, perHour, bracket)
+	if #prev == 0 then return {} end
+	local before = {}
+	for i, r in ipairs(prev) do before[r.key] = i end
+	local out = {}
+	for i, r in ipairs(rows) do
+		out[r.key] = before[r.key] and (before[r.key] - i) or "new"
+	end
+	return out
+end
+
+-- Ready-made invite message for guild chat or Discord (kept under 255 characters)
+function ns.InviteMessage()
+	local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+	local site = get and get("GuildRanks", "X-Website")
+	if type(site) ~= "string" or site == "" then site = "https://github.com/SeanVella/GuildRanks" end
+	site = site:gsub("^https?://", "") .. "/releases"
+	return string.format(ns.L["Join our guild competition! Install Guild Ranks: CurseForge app, search \"Guild Ranks\" (Forever), or %s"], site)
+end
+
 -- Rankings to choose from in the window (Play time is left out when the guild hides it)
 function ns.RankingChoices(g)
 	local o = {}
@@ -759,6 +804,16 @@ function ns.FormatTime(secs)
 	local m = math.floor((secs % 3600) / 60)
 	if h > 0 then return string.format("%dh %02dm", h, m) end
 	return string.format("%dm", m)
+end
+
+-- "just now", "2 min ago", "3 h ago", "2 days ago"
+function ns.FormatAgo(t)
+	if not t then return ns.L["never"] end
+	local secs = math.max(0, time() - t)
+	if secs < 60 then return ns.L["just now"] end
+	if secs < 3600 then return string.format(ns.L["%d min ago"], math.floor(secs / 60)) end
+	if secs < 86400 then return string.format(ns.L["%d h ago"], math.floor(secs / 3600)) end
+	return string.format(ns.L["%d days ago"], math.floor(secs / 86400))
 end
 
 function ns.FormatValue(metric, v, isRate, plain)
