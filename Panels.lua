@@ -109,7 +109,15 @@ local function CreateCard()
 	card.name = H().FS(card, "GameFontNormalLarge")
 	card.name:SetPoint("TOPLEFT", 22, -18); card.name:SetWidth(230)
 	card.sub = H().FS(card, "GameFontDisableSmall")
-	card.sub:SetPoint("TOPLEFT", 22, -38); card.sub:SetWidth(230)
+	card.sub:SetPoint("TOPLEFT", 22, -38); card.sub:SetWidth(170)
+	card.rival = H().MakeButton(card, L["Set as rival"], 96, function()
+		if not Card.key then return end
+		local P = ns.Personal
+		P.SetRival(P.Rival() == Card.key and nil or Card.key)
+		Card.Refresh()
+	end)
+	card.rival:SetHeight(18)
+	card.rival:SetPoint("TOPRIGHT", -30, -36)
 	local sf, child = H().MakeScroll(card, -56, INNER_W)
 	sf:ClearAllPoints()
 	sf:SetPoint("TOPLEFT", 22, -60)
@@ -136,7 +144,12 @@ function Card.Refresh()
 
 	card.name:SetText(H().ClassColored(ns.ShortName(key), p.class))
 	local cls = ClassName(p.class)
-	card.sub:SetText((cls ~= "" and (cls .. "  ·  ") or "") .. string.format(L["level %d"], p.level or 0))
+	local title = ns.Personal and ns.Personal.ShownTitle(g, key)
+	card.sub:SetText((title and ("|cffffd100<" .. title.name .. ">|r  ") or "") .. (cls ~= "" and (cls .. "  ·  ") or "")
+		.. string.format(L["level %d"], p.level or 0))
+	local canRival = key ~= ns.me and not g.solo and not g.demo
+	card.rival:SetShown(canRival)
+	if canRival then card.rival:SetText(ns.Personal.Rival() == key and L["Your rival"] or L["Set as rival"]) end
 
 	local b = ns.Aggregate(p, view.period, g)
 	local secs = b.playtime or 0

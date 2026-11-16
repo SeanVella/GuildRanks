@@ -154,6 +154,6 @@ function T.Demo(on)
 	ns.Hall.Update(g)
 	ns.db.view.guild = DEMO_KEY
 	ns.Print(L["Demo data added. Switch guilds at the top of the window; '/granks demo off' removes it."])
-	ns.UI.Toggle("list")
+	ns.UI.Show("list") -- (Toggle would close an already open window)
 	ns.MarkChanged()
 end

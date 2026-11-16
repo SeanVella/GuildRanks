@@ -1,11 +1,12 @@
 -- Guild Ranks: guild sync over hidden addon messages (guild channel only, so
 -- data never leaves the guild). Numbers are sent in base 36 to keep messages short.
---   D;proto;class;level;version;YYYY-MM-DD;f1,f2,...[;flags]   one day of the sender's stats
---   A;proto;class;level;version;f1,f2,...[;flags]              the sender's all-time stats
+--   D;proto;class;level;version;YYYY-MM-DD;f1,f2,...[;flags[;title]]   one day of the sender's stats
+--   A;proto;class;level;version;f1,f2,...[;flags[;title]]              the sender's all-time stats
 --                                                       flags: "p" = hide my play time
+--                                                       title: the weekly title the sender shows
 --   R;proto;full|quick                                  "please send me your data"
 --   L;proto                                             "I'm relaying offline members' data"
---   X;proto;player;class;level;version;day;f1,...[;flags]  relayed day for an offline member
+--   X;proto;player;class;level;version;day;f1,...[;flags[;title]]  relayed day for an offline member
 --   C;proto;ver;resetDay;minMin;goldMask;mgrRank;spoon;itemValue;by;challengeMetric;prize;goalMetric;goalTarget;announceMVP;resetHour;showPlaytime
 --                                                       guild rules (managers)
 --   E;proto;ver;part;parts;name,name,...                excluded players (managers)
@@ -183,7 +184,14 @@ end
 
 -- Optional flags at the end of D/A messages (left out when empty, to save space)
 local function Flags()
-	return ns.db.showPlay == false and ";p" or ""
+	local hide = ns.db.showPlay == false
+	local title = ns.Personal and ns.Personal.MyTitleCode()
+	if title then return ";" .. (hide and "p" or "") .. ";" .. title end
+	return hide and ";p" or ""
+end
+
+local function ValidTitle(s)
+	return type(s) == "string" and #s <= 12 and s:match("^[a-z]+$") and s or nil
 end
 
 local function Me()
@@ -285,7 +293,8 @@ function C.QueueRelay(requester)
 	for i = 1, math.min(#items, RELAY_MAX) do
 		local it = items[i]
 		Enqueue("X" .. it.key .. it.day, string.format("X;%d;%s;%s;%d;%s;%s;%s%s", ns.PROTO, it.key,
-			it.p.class or "", it.p.level or 0, it.p.version or "", it.day, EncodeBucket(it.b), it.p.hidePlay and ";p" or ""))
+			it.p.class or "", it.p.level or 0, it.p.version or "", it.day, EncodeBucket(it.b),
+			it.p.title and (";" .. (it.p.hidePlay and "p" or "") .. ";" .. it.p.title) or (it.p.hidePlay and ";p" or "")))
 	end
 	return math.min(#items, RELAY_MAX)
 end
@@ -468,9 +477,11 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 		if kind == "D" then
 			if ValidDay(parts[6]) then p.days[parts[6]] = DecodeBucket(parts[7]) end
 			p.hidePlay = parts[8] == "p" or nil
+			p.title = ValidTitle(parts[9])
 		else
 			p.all = DecodeBucket(parts[6])
 			p.hidePlay = parts[7] == "p" or nil
+			p.title = ValidTitle(parts[8])
 		end
 		C.lastReceived = time()
 		NoteData(sender)
@@ -484,7 +495,8 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 		if not key or key == ns.me or not key:find("-", 1, true) or g.hidden[key] or not ValidDay(day) then return end
 		local b = DecodeBucket(parts[8])
 		local p = ns.GetPlayer(g, key, true)
-		if parts[9] == "p" then p.hidePlay = true end -- only direct messages can clear it
+		if parts[9] == "p" then p.hidePlay = true end -- only direct messages can clear these
+		if ValidTitle(parts[10]) then p.title = parts[10] end
 		stats.relayed = stats.relayed + 1
 		NoteData(sender)
 		p.relayedAt = time()

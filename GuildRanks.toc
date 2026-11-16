@@ -33,5 +33,7 @@ Hall.lua
 Bar.lua
 Alerts.lua
 Tools.lua
+Personal.lua
 UI.lua
+Me.lua
 Panels.lua

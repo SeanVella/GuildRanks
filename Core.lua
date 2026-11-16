@@ -95,7 +95,7 @@ function ns.DefaultRules()
 end
 
 local DEFAULTS = {
-	view = { metric = "score", period = "week", perHour = true, bracket = 0 },
+	view = { metric = "score", period = "week", perHour = true, bracket = 0, onlineOnly = false },
 	ui = { minimap = { hide = false } },
 	share = true,                -- share my stats with my guild
 	showPlay = true,             -- let guildmates see my play time

@@ -3,11 +3,19 @@
 ## 1.1.0
 
 New
+- Me tab: your stats (today, this week, all time) with the change since the previous period,
+  a 7-day chart, personal goals with pace, personal bests ("New personal best!" toast), a rival
+  (head to head plus alerts when either of you passes the other) and weekly titles for last
+  week's #1 in each ranking, one of which you can show to your guild (checked by everyone's
+  addon, so titles can't be faked).
+- Session recap at your next login (not after a /reload) and with `/granks recap`.
 - Redesigned window: tabs (Ranks, Hall of Fame, Members, Settings), a cleaner title (the guild
   picker only appears if your characters are in several guilds) and a compact award strip that
   only shows last week's awards, the challenge and the goal when there's something to show.
 - One-click ranking chips (Score, Gold, XP, Damage, Quests, plus More rankings), score bars,
   and each player's rank change since the previous period (+2, -1, new).
+- Online status: a green dot next to guildmates who are online, an "Online only" filter
+  (rank numbers stay the same) and the online count in the footer.
 - Player cards: click a name for the score breakdown, all stats, gold by source and recent weeks.
 - Invite button: post an install message in guild chat or copy it for Discord (`/granks invite`).
 - Settings split into "You" and "Guild rules"; members see a plain summary of the rules,
@@ -43,11 +51,12 @@ Fixes
 - Offline members' data is relayed to every new login (relay cooldown was too long),
   and the roster is refreshed before relaying.
 - Opening a page before the main window had been shown no longer errors.
+- `/granks demo` (and "Show sample data") no longer closes the window when it's already open.
 - Two members logging in within a minute of each other both get the guild's data
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (70 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (79 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

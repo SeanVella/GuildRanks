@@ -180,6 +180,7 @@ test("welcome shows once on first open; 'Show sample data' opens the demo", func
 	c.ns.Welcome.Done()
 	c.ns.Tools.Demo(true)
 	eq(c.ns.db.view.guild, "~demo", "sample data shown")
+	ok(c.ns.UI.Frame():IsShown(), "window stays open (fix)")
 	c.ns.UI.Show("list")
 	c.ns.Card.Show(next(c.ns.db.guilds["~demo"].players))
 	contains(c.ns.Card.Texts(), "Score breakdown", "card works on sample data")
@@ -201,4 +202,54 @@ test("time-ago text and empty leaderboard with an invite button", function()
 	local controls = Controls(sean)
 	ok(controls.emptyInvite:IsShown(), "invite button on an empty leaderboard")
 	ok(not controls.awardBox:IsShown(), "no award box without results")
+end)
+
+test("online: green dots by names, 'Online only' keeps real rank numbers, online count in the footer", function()
+	local w, kurt, sean, maria, g = TwoWeeks()
+	local ns = sean.ns
+	ns.db.ui.welcomed = true
+	ns.db.view.metric = "gold"
+	ns.UI.Show("list")
+	eq(ns.UI.IsOnline(g, sean.key), true, "Sean online")
+	eq(ns.UI.IsOnline(g, kurt.key), false, "Kurt offline")
+	eq(ns.UI.OnlineCount(g), 1, "one online")
+	local rows = ns.UI.VisibleRows()
+	eq(#rows, 4, "everyone listed")
+	contains(rows[1].name, "StatusIcon-Offline", "Joe (offline) has the offline ring")
+	local _, _, _, footer = ns.UI.Internals()
+	contains(footer:GetText(), "1 online", "online count")
+	-- Online only
+	local controls = ns.UI.Internals()
+	controls.onlineOnly:SetChecked(true)
+	controls.onlineOnly:GetScript("OnClick")(controls.onlineOnly)
+	rows = ns.UI.VisibleRows()
+	eq(#rows, 1, "only Sean")
+	eq(rows[1].key, sean.key, "Sean")
+	contains(rows[1].rank, "4.", "keeps his real rank (4th in gold)")
+	contains(rows[1].name, "StatusIcon-Online", "green dot")
+	-- Kurt logs in: he appears once the roster updates
+	kurt:Login()
+	ns.RequestRoster()
+	w:Advance(5)
+	rows = ns.UI.VisibleRows()
+	eq(#rows, 2, "Kurt and Sean")
+	contains(rows[1].rank, "2.", "Kurt is 2nd")
+	contains(footer:GetText(), "2 online", "count updated")
+	-- another character's guild or sample data: no dots, filter off
+	ns.Tools.Demo(true)
+	ns.UI.Refresh()
+	ok(not controls.onlineOnly:IsEnabled(), "filter can't be used without a roster")
+	ok(#ns.UI.VisibleRows() > 0, "sample data still listed")
+	absent(ns.UI.VisibleRows()[1].name, "StatusIcon", "no dots on sample data")
+end)
+
+test("online only: a clear message when nobody on the list is online", function()
+	local w, kurt, sean, maria, g = TwoWeeks()
+	local ns = sean.ns
+	ns.db.ui.welcomed = true
+	ns.db.view.onlineOnly = true
+	ns.db.view.bracket = 0
+	g.rules.excluded[sean.key] = true -- Sean (the only one online) isn't on the board
+	ns.UI.Show("list")
+	eq(#ns.UI.VisibleRows(), 0, "nobody shown")
 end)

@@ -412,7 +412,7 @@ function Client:Login(opts)
 	end
 	self:Fire("ADDON_LOADED", "GuildRanks")
 	self:Fire("PLAYER_LOGIN")
-	self:Fire("PLAYER_ENTERING_WORLD", true, false)
+	self:Fire("PLAYER_ENTERING_WORLD", not opts.reload, opts.reload and true or false)
 	self:Fire("GUILD_ROSTER_UPDATE")
 	if opts.settle ~= false then world:Advance(opts.settle or 5) end
 	return self

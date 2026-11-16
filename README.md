@@ -16,13 +16,22 @@ itself.
   gathering, crafting, fewest deaths and play time. Per hour or totals; today,
   this week, last week, this month or all time; filter by level range. The most
   used rankings are one click away, with score bars and each player's rank change
-  since last week (+2, -1, new).
+  since last week (+2, -1, new). A green dot shows who's online right now, and
+  "Online only" narrows the list to them.
 - **Player cards** — click a name for their Guild score broken down by category,
   every stat (total and per hour), gold by source and their recent weeks.
 - **Guild score (0-100)** — placement across 8 equally weighted categories (gold,
   levels gained, combat, quests, kills, bosses and runs, gathering and crafting,
   fewest deaths). Fair by design: per hour of play, healers ranked on healing,
   "levels gained" instead of raw XP, and a minimum play time to qualify.
+- **Me tab, just for you** — your stats today, this week or all time with the change
+  since last week, a 7-day chart, **personal goals** (an amount this week or month, or
+  a level to reach, with your pace), **personal bests** with a "New personal best!"
+  toast, a **rival** to race (head to head, with an alert when either of you passes
+  the other) and **weekly titles** earned by finishing #1 in a ranking (Gold Baron,
+  Quest Machine, Slayer, Iron Man...), which you can show to your guild.
+- **Session recap** — a short summary of your last session when you log in again
+  (or anytime with `/granks recap`), ready to post in guild chat.
 - **Weekly MVP and Wooden spoon** — shown in game, in the minimap/data-text tooltip
   and in the Discord post. Guilds can turn the Wooden spoon off.
 - **Copy for Discord** — results as ready-to-paste Discord text. No setup.
@@ -82,6 +91,8 @@ competition.
 | Command | What it does |
 |---|---|
 | `/granks` | Open the leaderboard (or click it in the addon menu / minimap button) |
+| `/granks me` | Your own stats, goals, personal bests, rival and titles |
+| `/granks recap` | Your session recap (this session, or the last one) |
 | `/granks members` | Members page: who uses the addon, versions, exclusions |
 | `/granks hall` | Hall of Fame |
 | `/granks bar` | Show or hide the session bar |
@@ -144,7 +155,7 @@ and paste into your channel. (WoW addons can't go online, so the addon can't pos
 
 ## Testing
 
-An automated simulated guild (70 scenario tests, run on Lua 5.1 and 5.3 on every
+An automated simulated guild (79 scenario tests, run on Lua 5.1 and 5.3 on every
 push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
 
 ## Contributing

@@ -1,0 +1,207 @@
+-- Personal features: personal bests, goals, weekly titles, rival, session recap, Me tab
+
+local function Toasts(c, part)
+	local n = 0
+	for _, line in ipairs(c.printed) do if line:find(part, 1, true) then n = n + 1 end end
+	return n
+end
+
+local function Loot(c, copper)
+	c:Fire("LOOT_OPENED"); c:GainMoney(copper); c:Fire("LOOT_CLOSED")
+end
+
+-- Kurt/Sean/Maria with last week's data on Sean's side: Kurt best at everything, Maria last
+local function LastWeekGuild()
+	local w = NewWorld()
+	local kurt, sean, maria = StandardGuild(w)
+	kurt:Login(); sean:Login()
+	local g, ns = sean:G(), sean.ns
+	local d = ns.ShiftDay(ns.WeekStart(g), -3)
+	local function day(key, mult)
+		local p = ns.GetPlayer(g, key, true)
+		p.days[d] = { playtime = 3600, g_loot = 10000 * mult, xp = 1000 * mult, mlevels = 100 * mult, damage = 50000 * mult,
+			kills = 10 * mult, quests = mult, deaths = 3 - mult, bosses = mult, gathers = mult, crafts = mult }
+	end
+	day(kurt.key, 3); day(sean.key, 2); day(maria.key, 1)
+	ns.Personal.ClearTitleCache()
+	return w, kurt, sean, maria, g
+end
+
+test("personal bests: filled silently at first, a toast when you beat one (once)", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo" })
+	c:Login()
+	local ns = c.ns
+	local yesterday = ns.ShiftDay(ns.Today(), -1)
+	SeedDay(c, yesterday, { playtime = 3600, g_loot = 10000, quests = 3, xp = 1000 })
+	ns.Personal.SeedRecords()
+	local rec = ns.Personal.Data().records
+	eq(rec.gold.value, 10000, "seeded from yesterday")
+	eq(rec.gold.day, yesterday, "with its day")
+	c.printed = {}
+	Loot(c, 15000)
+	ns.Personal.CheckRecords()
+	eq(Toasts(c, "New personal best! Gold in a day"), 1, "toast for the new best")
+	Loot(c, 5000)
+	ns.Personal.CheckRecords()
+	eq(Toasts(c, "New personal best! Gold in a day"), 1, "only once a day")
+	eq(rec.gold.value, 20000, "record follows today's total")
+	eq(rec.gold.day, ns.Today(), "dated today")
+	ok(ns.Personal.CurrentSession().bests[1], "noted in this session's recap")
+end)
+
+test("days in a row: today counts once you've played, otherwise up to yesterday", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo" })
+	c:Login({ settle = 1 })
+	local ns = c.ns
+	local today = ns.Today()
+	SeedDay(c, ns.ShiftDay(today, -3), { playtime = 600 })
+	SeedDay(c, ns.ShiftDay(today, -2), { playtime = 600 })
+	SeedDay(c, ns.ShiftDay(today, -1), { playtime = 600 })
+	ns.GetPlayer(c:G(), c.key).days[today] = nil
+	eq(ns.Personal.Streak(), 3, "3 days up to yesterday")
+	SeedDay(c, today, { playtime = 600 })
+	eq(ns.Personal.Streak(), 4, "today makes 4")
+end)
+
+test("goals: progress, pace, a toast when reached (once), level goals and a limit of 3", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo", level = 30 })
+	c:Login()
+	local P = c.ns.Personal
+	ok(P.AddGoal("gold", 5, "week"), "5 gold this week")
+	ok(not P.AddGoal("level", 30), "can't target your current level")
+	ok(P.AddGoal("level", 32), "reach level 32")
+	local goals = P.Data().goals
+	eq(P.GoalLabel(goals[1]):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""), "5g 0s this week", "label")
+	eq(P.GoalLabel(goals[2]), "Reach level 32", "level label")
+	local _, frac, status, done = P.GoalProgress(goals[1])
+	eq(done, false, "not yet")
+	contains(status, "behind", "behind at the start? no gold yet")
+	c.printed = {}
+	Loot(c, 30000)
+	_, frac, status, done = P.GoalProgress(goals[1])
+	eq(frac, 0.6, "60%")
+	Loot(c, 30000)
+	P.CheckGoals(); P.CheckGoals()
+	eq(Toasts(c, "Goal reached"), 1, "one toast")
+	ok(P.AddGoal("quests", 10, "month"), "third goal")
+	ok(not P.AddGoal("kills", 10, "week"), "no fourth goal")
+	P.RemoveGoal(1)
+	eq(#goals, 2, "removed")
+end)
+
+test("weekly titles: #1 last week earns one; others see the title you show, but can't fake one", function()
+	local w, kurt, sean, maria, g = LastWeekGuild()
+	local P = sean.ns.Personal
+	local codes = {}
+	for _, t in ipairs(P.TitlesFor(g, kurt.key)) do codes[t.code] = true end
+	ok(codes.gold and codes.quests and codes.mvp, "Kurt: Gold Baron, Quest Machine, MVP")
+	eq(#P.TitlesFor(g, maria.key), 0, "Maria: none")
+	-- Kurt shows Gold Baron; Sean sees it
+	kurt.ns.Personal.SetTitle("gold")
+	w:Advance(30)
+	eq(g.players[kurt.key].title, "gold", "title arrived")
+	eq(P.ShownTitle(g, kurt.key).name, "Gold Baron", "shown on Sean's side")
+	-- Maria claims a title she didn't earn
+	maria:Login()
+	maria.ns.Personal.SetTitle("gold")
+	w:Advance(30)
+	eq(g.players[maria.key].title, "gold", "claim arrived")
+	eq(P.ShownTitle(g, maria.key), nil, "but isn't shown: she didn't earn it")
+	-- clearing it
+	kurt.ns.Personal.SetTitle(nil)
+	w:Advance(30)
+	eq(P.ShownTitle(g, kurt.key), nil, "hidden again")
+end)
+
+test("rival: head to head, and an alert when you pass them", function()
+	local w = NewWorld()
+	local kurt, sean = StandardGuild(w)
+	kurt:Login(); sean:Login()
+	local g, ns = sean:G(), sean.ns
+	local P = ns.Personal
+	local today = ns.Today()
+	ns.GetPlayer(g, kurt.key, true).days[today] = { playtime = 3600, g_loot = 50000, xp = 9000, quests = 5, kills = 20 }
+	ns.GetPlayer(g, sean.key, true).days[today] = { playtime = 3600, g_loot = 20000, xp = 1000, quests = 2, kills = 5 }
+	P.SetRival(kurt.key)
+	local rows = P.HeadToHead(g, "week")
+	eq(#rows, 5, "five stats")
+	eq(rows[2].label, "Gold/h", "gold per hour row")
+	ok(rows[2].theirs > rows[2].mine, "Kurt ahead in gold/h")
+	sean.printed = {}
+	P.CheckRival()
+	eq(Toasts(sean, "rival"), 0, "first look: no alert")
+	ns.GetPlayer(g, sean.key).days[today].g_loot = 90000
+	P.CheckRival()
+	eq(Toasts(sean, "You passed your rival Kurt in Gold/h"), 1, "alert when passing")
+	P.CheckRival()
+	eq(Toasts(sean, "You passed your rival Kurt"), 1, "only once")
+	P.SetRival(nil)
+	eq(#P.HeadToHead(g, "week"), 0, "no rival, no table")
+end)
+
+test("session recap: shown at the next login, not after a /reload", function()
+	local w = NewWorld()
+	local c = w:NewClient({ name = "Solo" })
+	c:Login()
+	Loot(c, 32000)
+	c:GainXP(5000)
+	w:Advance(600)
+	c:Logout()
+	-- /reload: same session continues, no recap
+	c:Login({ reload = true })
+	w:Advance(15)
+	eq(c.ns.MeView.RecapText(), nil, "no recap after a reload")
+	local cur = c.ns.Personal.CurrentSession()
+	ok((cur.totals.playtime or 0) >= 590, "session time carried over")
+	eq(c.ns.Personal.Value(cur.totals, "gold"), 32000, "session gold carried over")
+	c:Logout()
+	-- real login later
+	w:Advance(3600)
+	c:Login()
+	w:Advance(15)
+	local text = c.ns.MeView.RecapText()
+	ok(text, "recap shown")
+	local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+	contains(plain, "+3g 20s", "gold")
+	contains(plain, "10m", "play time")
+	-- /granks recap with no new play shows the last session again
+	c:Slash("recap")
+	ok(c.ns.MeView.RecapText(), "recap on demand")
+end)
+
+test("Me tab: stats, chart, goal form, bests, rival and titles without errors", function()
+	local w, kurt, sean, maria, g = LastWeekGuild()
+	local ns = sean.ns
+	ns.db.ui.welcomed = true
+	SeedDay(sean, ns.Today(), { playtime = 3600, g_loot = 30000, xp = 4000, quests = 6 })
+	sean:Slash("me")
+	eq(ns.UI.Current(), "me", "Me tab open")
+	local el = ns.MeView.Internals()
+	contains(el.tiles[2].label:GetText(), "Gold/h", "gold per hour tile")
+	contains(el.tiles[2].value:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""), "3g 0s", "3g per hour")
+	for _, key in ipairs({ "today", "all", "week" }) do el.chips[key]:GetScript("OnClick")(el.chips[key]) end
+	eq(ns.db.ui.mePeriod, "week", "period chips")
+	-- add a goal through the form
+	el.addGoal:GetScript("OnClick")(el.addGoal)
+	ok(el.form:IsShown(), "form open")
+	el.newGoal.kind, el.newGoal.period = "quests", "week"
+	el.formTarget:SetText("20")
+	el.formAdd:GetScript("OnClick")(el.formAdd)
+	eq(#ns.Personal.Data().goals, 1, "goal added")
+	ok(not el.form:IsShown(), "form closed")
+	ok(el.goals[1].label:IsShown(), "goal row shown")
+	-- rival from the player card
+	ns.UI.Show("list")
+	ns.Card.Show(kurt.key)
+	ns.Personal.SetRival(kurt.key)
+	ns.UI.Show("me")
+	contains(el.rivalHead:GetText(), "Kurt", "rival shown")
+	-- Sean holds no title (Kurt won everything): buttons can't be picked
+	el.titles[2]:GetScript("OnClick")(el.titles[2])
+	eq(ns.Personal.MyTitleCode(), nil, "unearned titles can't be shown")
+	kurt.ns.db.ui.welcomed = true
+	kurt.ns.UI.Show("me")
+end)

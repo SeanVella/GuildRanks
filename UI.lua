@@ -154,9 +154,39 @@ function UI.AddonUsers(g)
 	return with, ns.rosterCount
 end
 
+-- Online status from the guild roster: true / false, or nil when we can't tell
+-- (another character's guild, sample data, roster not loaded yet)
+function UI.RosterKnown(g)
+	return g ~= nil and not g.solo and g == ns.G() and ns.rosterReady and true or false
+end
+
+function UI.IsOnline(g, key)
+	if not UI.RosterKnown(g) then return nil end
+	local info = ns.roster[key]
+	return info and info.online and true or false
+end
+
+function UI.OnlineCount(g)
+	if not UI.RosterKnown(g) then return nil end
+	local n = 0
+	for _, info in pairs(ns.roster) do if info.online then n = n + 1 end end
+	return n
+end
+
+local ONLINE_ICON = "|T" .. (FRIENDS_TEXTURE_ONLINE or "Interface\\FriendsFrame\\StatusIcon-Online") .. ":12:12|t "
+local OFFLINE_ICON = "|T" .. (FRIENDS_TEXTURE_OFFLINE or "Interface\\FriendsFrame\\StatusIcon-Offline") .. ":12:12|t "
+
 UI.H = { FS = FS, ClassColored = ClassColored, Tip = Tip, MakeButton = MakeButton, MakeScroll = MakeScroll }
+UI.MakeDropdown = MakeDropdown
 function UI.Frame() return frame end
-function UI.Internals() return controls, w, tabs end -- for the automated tests
+function UI.Internals() return controls, w, tabs, footerText end -- for the automated tests
+function UI.VisibleRows() -- for the automated tests
+	local out = {}
+	for _, r in ipairs(rows) do
+		if r:IsShown() and r.data then out[#out + 1] = { key = r.data.key, rank = r.rank:GetText(), name = r.name:GetText() } end
+	end
+	return out
+end
 function UI.Current() return current end
 
 ---------------------------------------------------------------------------
@@ -172,6 +202,8 @@ local function ShowRowTooltip(self)
 	local g = ns.V()
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 	GameTooltip:AddLine(ClassColored(d.key, d.class))
+	local title = ns.Personal and ns.Personal.ShownTitle(g, d.key)
+	if title then GameTooltip:AddLine("<" .. title.name .. ">", 1, 0.82, 0) end
 	if ns.PlaytimeShownFor(g, d.key) and d.playtime then
 		GameTooltip:AddLine(string.format(L["Level %d  ·  %s played"], d.level or 0, ns.FormatTime(d.playtime)), 0.8, 0.8, 0.8)
 	else
@@ -301,11 +333,22 @@ local function RefreshList(g)
 
 	local top = data[1] and data[1].value or 0
 	local selected = ns.Card and ns.Card.key
+	local rosterKnown = UI.RosterKnown(g)
+	if rosterKnown then controls.onlineOnly:Enable() else controls.onlineOnly:Disable() end
+	controls.onlineOnly:SetChecked(v.onlineOnly and true or false)
+	-- "Online only" hides offline members but keeps everyone's real rank number
+	local shown = {}
 	for i, d in ipairs(data) do
+		if not (v.onlineOnly and rosterKnown and not UI.IsOnline(g, d.key)) then shown[#shown + 1] = { rank = i, d = d } end
+	end
+	for i, item in ipairs(shown) do
+		local d, rank = item.d, item.rank
 		local r = GetRow(i)
 		r.data = d
-		r.rank:SetText((RANK_COLORS[i] or "|cffffffff") .. i .. ".|r")
-		r.name:SetText(ClassColored(d.name, d.class) .. ns.Hall.Badge(g, d.key))
+		r.rank:SetText((RANK_COLORS[rank] or "|cffffffff") .. rank .. ".|r")
+		local online = UI.IsOnline(g, d.key)
+		local icon = (online == true and ONLINE_ICON) or (online == false and OFFLINE_ICON) or ""
+		r.name:SetText(icon .. ClassColored(d.name, d.class) .. ns.Hall.Badge(g, d.key))
 		r.level:SetText(d.level or "?")
 		r.value:SetText(ns.FormatValue(metric, d.value, useRate))
 		local frac
@@ -334,13 +377,17 @@ local function RefreshList(g)
 		end
 		r:Show()
 	end
-	for i = #data + 1, #rows do
+	for i = #shown + 1, #rows do
 		rows[i].data = nil
 		rows[i]:Hide()
 	end
-	content:SetHeight(math.max(1, #data * ROW_H))
+	content:SetHeight(math.max(1, #shown * ROW_H))
 
-	if #data == 0 then
+	if #data > 0 and #shown == 0 then
+		emptyText:SetText(L["Nobody on this list is online right now."] .. "\n" .. L["Untick 'Online only' to see everyone."])
+		emptyText:Show()
+		controls.emptyInvite:Hide()
+	elseif #data == 0 then
 		local needsTime = useRate or metric.lowerIsBetter or metric.key == "score"
 		local head = metric.key == "score" and L["Nobody's ranked yet for this period."]
 			or string.format(L["Nobody has any %s yet for this period."], metric.short)
@@ -365,6 +412,8 @@ local function RefreshList(g)
 	elseif g ~= ns.G() then
 		parts[#parts + 1] = L["(one of your other characters' guilds)"]
 	end
+	local online = UI.OnlineCount(g)
+	if online then parts[#parts + 1] = ONLINE_ICON .. string.format(L["%d online"], online) end
 	if unranked > 0 then parts[#parts + 1] = string.format(L["%d under %d min (not ranked)"], unranked, g.rules.minMinutes) end
 	if not g.solo and not g.demo then parts[#parts + 1] = L["updated"] .. " " .. ns.FormatAgo(ns.Comm.lastReceived) end
 	footerText:SetText(table.concat(parts, "  ·  "))
@@ -867,6 +916,10 @@ function UI.Refresh()
 		RefreshMembers(g)
 	elseif current == "hall" then
 		RefreshHall(g)
+	elseif current == "me" then
+		resetText:SetText(ns.ResetDescription(g))
+		footerText:SetText(L["Your own stats, goals and bests. Only titles you choose to show are shared."])
+		ns.MeView.Refresh(g)
 	else
 		RefreshList(g)
 	end
@@ -999,7 +1052,10 @@ local function BuildList()
 	controls.bracket:SetPoint("TOPLEFT", 144, -28)
 	controls.desc = FS(body, "GameFontDisableSmall")
 	controls.desc:SetPoint("TOPLEFT", 254, -34)
-	controls.desc:SetWidth(300)
+	controls.desc:SetWidth(222)
+	controls.onlineOnly = MakeCheck(body, L["Online only"], function(checked) view.onlineOnly = checked; UI.Refresh() end,
+		L["Show only guildmates who are online right now (their rank numbers stay the same)."])
+	controls.onlineOnly:SetPoint("TOPLEFT", 482, -27)
 
 	local hdr = CreateFrame("Frame", nil, body)
 	hdr:SetPoint("TOPLEFT", 18, -58)
@@ -1087,6 +1143,8 @@ CreateMain = function()
 	frame:Hide()
 	tinsert(UISpecialFrames, "GuildRanksFrame")
 	frame:SetScript("OnShow", function() ns.RequestRoster(); UI.Refresh() end)
+	-- Keep online status fresh while the window is open
+	C_Timer.NewTicker(30, function() if frame:IsShown() then ns.RequestRoster() end end)
 
 	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", -6, -6)
@@ -1112,7 +1170,7 @@ CreateMain = function()
 
 	-- Tabs
 	local x = 16
-	for _, t in ipairs({ { "list", L["Ranks"], 80 }, { "hall", L["Hall of Fame"], 110 }, { "members", L["Members"], 90 }, { "settings", L["Settings"], 90 } }) do
+	for _, t in ipairs({ { "list", L["Ranks"], 80 }, { "me", L["Me"], 56 }, { "hall", L["Hall of Fame"], 110 }, { "members", L["Members"], 90 }, { "settings", L["Settings"], 90 } }) do
 		local view = t[1]
 		local tab = MakeTab(frame, t[2], t[3], function() UI.Show(view) end)
 		tab:SetPoint("TOPLEFT", x, -40)
@@ -1131,6 +1189,7 @@ CreateMain = function()
 	BuildMembers()
 	BuildSettings()
 	BuildHall()
+	views.me = ns.MeView.Build(frame)
 
 	footerText = FS(frame, "GameFontDisableSmall")
 	footerText:SetPoint("BOTTOMLEFT", 22, 42)
@@ -1250,7 +1309,7 @@ SlashCmdList.GUILDRANKS = function(msg)
 	msg = (msg or ""):lower():match("^%s*(.-)%s*$")
 	if msg == "" or msg == "show" then
 		UI.Toggle()
-	elseif msg == "members" or msg == "settings" or msg == "hall" then
+	elseif msg == "members" or msg == "settings" or msg == "hall" or msg == "me" then
 		UI.Toggle(msg)
 	elseif msg == "sync" then
 		ns.Comm.SyncNow()
@@ -1271,6 +1330,8 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.Tools.PrintLog()
 	elseif msg == "weekly" then
 		if not (ns.G() and ns.Alerts.ShowWeeklyPopup(ns.G())) then ns.Print(L["No results for last week yet."]) end
+	elseif msg == "recap" then
+		ns.ShowRecap()
 	elseif msg == "invite" then
 		ns.Invite.Show()
 	elseif msg == "welcome" then
@@ -1284,7 +1345,8 @@ SlashCmdList.GUILDRANKS = function(msg)
 		end
 	else
 		ns.Print("/granks  " .. L["open the leaderboard"])
-		ns.Print("/granks members | hall | settings  " .. L["open those pages"])
+		ns.Print("/granks me | members | hall | settings  " .. L["open those pages"])
+		ns.Print("/granks recap  " .. L["show your session recap"])
 		ns.Print("/granks discord  " .. L["copy the results for Discord"])
 		ns.Print("/granks invite  " .. L["invite guildmates to install Guild Ranks"])
 		ns.Print("/granks bar  " .. L["show or hide the session bar"])
