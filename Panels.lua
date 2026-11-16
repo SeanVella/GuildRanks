@@ -147,7 +147,7 @@ function Card.Refresh()
 	local title = ns.Personal and ns.Personal.ShownTitle(g, key)
 	card.sub:SetText((title and ("|cffffd100<" .. title.name .. ">|r  ") or "") .. (cls ~= "" and (cls .. "  ·  ") or "")
 		.. string.format(L["level %d"], p.level or 0))
-	local canRival = key ~= ns.me and not g.solo and not g.demo
+	local canRival = ns.Personal.CanBeRival(key) and not g.solo and not g.demo
 	card.rival:SetShown(canRival)
 	if canRival then card.rival:SetText(ns.Personal.Rival() == key and L["Your rival"] or L["Set as rival"]) end
 

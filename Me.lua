@@ -167,7 +167,7 @@ function MeView.Build(frame)
 		local o = { { value = "", text = L["No rival"] } }
 		local g = ns.V()
 		local names = {}
-		if g then for key in pairs(g.players) do if key ~= ns.me then names[#names + 1] = key end end end
+		if g then for key in pairs(g.players) do if P.CanBeRival(key) then names[#names + 1] = key end end end
 		table.sort(names)
 		for _, key in ipairs(names) do o[#o + 1] = { value = key, text = ns.ShortName(key) } end
 		return o

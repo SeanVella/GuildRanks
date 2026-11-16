@@ -211,6 +211,31 @@ function ns.FullName(name)
 	return name
 end
 
+-- Same character? Ignores letter case and how the realm is written ("Argent Dawn",
+-- "ArgentDawn", "argent-dawn"); a missing realm means your own realm.
+local function NameKey(full)
+	if type(full) ~= "string" then return nil end
+	local name, realm = full:match("^([^%-]+)%-?(.*)$")
+	if not name then return nil end
+	if realm == "" then realm = ns.MyRealm() or "" end
+	return name:lower() .. "-" .. realm:gsub("[%s%-'%.]", ""):lower()
+end
+
+function ns.SameCharacter(a, b)
+	local ka, kb = NameKey(a), NameKey(b)
+	return ka ~= nil and ka == kb
+end
+
+-- One of your own characters (this one or an alt that has used Guild Ranks on this account)
+function ns.IsMyCharacter(key)
+	if not key then return false end
+	if ns.me and ns.SameCharacter(key, ns.me) then return true end
+	for charKey in pairs((ns.db and ns.db.chars) or {}) do
+		if ns.SameCharacter(key, charKey) then return true end
+	end
+	return false
+end
+
 function ns.ShortName(full)
 	return (full and full:match("^([^%-]+)")) or full or "?"
 end

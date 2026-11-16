@@ -355,17 +355,30 @@ P.RIVAL_METRICS = {
 	{ key = "kills",  label = L["Kills"],       perHour = false },
 }
 
+-- Your rival (never one of your own characters, even if saved that way by an older version)
 function P.Rival()
 	local d = Data()
-	return d and d.rival
+	if not d or not d.rival then return nil end
+	if ns.IsMyCharacter(d.rival) then
+		d.rival, d.rivalState = nil, {}
+		return nil
+	end
+	return d.rival
 end
 
+function P.CanBeRival(key)
+	return key ~= nil and key ~= "" and not ns.IsMyCharacter(key)
+end
+
+-- Returns true if set (or cleared with nil); false if the choice isn't allowed
 function P.SetRival(key)
 	local d = Data()
-	if not d then return end
-	d.rival = (key ~= ns.me) and key or nil
+	if not d then return false end
+	if key ~= nil and not P.CanBeRival(key) then return false end
+	d.rival = key
 	d.rivalState = {}
 	ns.MarkChanged()
+	return true
 end
 
 -- Rows { label, mine, theirs, metric } for a period (values nil when not ranked)

@@ -205,3 +205,40 @@ test("Me tab: stats, chart, goal form, bests, rival and titles without errors", 
 	kurt.ns.db.ui.welcomed = true
 	kurt.ns.UI.Show("me")
 end)
+
+test("you can't pick yourself or one of your alts as rival, however the name is written (fix)", function()
+	local w = NewWorld()
+	local kurt, sean = StandardGuild(w)
+	kurt:Login(); sean:Login()
+	local g, ns = sean:G(), sean.ns
+	local P = ns.Personal
+	ok(ns.SameCharacter("Sean-Firemaw", "sean-fire maw"), "same character, written differently")
+	ok(not ns.SameCharacter("Sean-Firemaw", "Sean-Argent Dawn"), "different realm")
+	eq(P.SetRival(sean.key), false, "not yourself")
+	eq(P.SetRival("SEAN-firemaw"), false, "not yourself in other letters")
+	eq(P.SetRival("Sean-Fire Maw"), false, "not yourself with the realm spelled differently")
+	ns.GetPlayer(g, kurt.key, true).days[ns.Today()] = { playtime = 3600, g_loot = 500 }
+	ns.db.chars["Seanalt-Firemaw"] = {}
+	ns.GetPlayer(g, "Seanalt-Firemaw", true).days[ns.Today()] = { playtime = 3600, g_loot = 100 }
+	ns.GetPlayer(g, "Sean-Fire Maw", true).days[ns.Today()] = { playtime = 3600, g_loot = 100 }
+	eq(P.SetRival("Seanalt-Firemaw"), false, "not one of your alts")
+	eq(P.Rival(), nil, "still no rival")
+	eq(P.SetRival(kurt.key), true, "a guildmate is fine")
+	eq(P.Rival(), kurt.key, "Kurt")
+	-- a rival saved as yourself by an older version is cleared
+	P.Data().rival = sean.key
+	eq(P.Rival(), nil, "cleared")
+	eq(P.Data().rival, nil, "and forgotten")
+	-- the rival list in the Me tab leaves you and your alts out
+	ns.db.ui.welcomed = true
+	ns.UI.Show("me")
+	local el = ns.MeView.Internals()
+	local names = {}
+	local root = { CreateRadio = function(_, text) names[#names + 1] = text end }
+	el.rivalPick._menu(nil, root)
+	local list = table.concat(names, ",")
+	contains(list, "Kurt", "Kurt offered")
+	absent(list, "Seanalt", "alt not offered")
+	absent(list, "Sean,", "you aren't offered")
+	ok(not list:find("Sean$"), "you aren't offered (end)")
+end)
