@@ -1,135 +1,128 @@
+<div align="center">
+
 # Guild Ranks
 
-**Friendly competition for your whole guild in World of Warcraft: Forever.**
-Guild Ranks ranks your guildmates by gold, XP, damage, healing, quests, kills,
-gathering, crafting and more, **per hour of play**, combines it into one fair
-**Guild score**, and every week names an **MVP** (and, if your guild wants it, a
-**Wooden spoon**). Share the results in Discord with one click.
+**Weekly leaderboards for your guild in World of Warcraft: Forever.**
+See who's carrying the guild, chase your own records, and crown an MVP every week.
 
-Works for any guild, automatically. Install it, and it detects your guild by
-itself.
+[![CurseForge downloads](https://img.shields.io/curseforge/dt/1808193?label=CurseForge&color=f16436)](https://www.curseforge.com/projects/1808193)
+[![Latest release](https://img.shields.io/github/v/release/SeanVella/GuildRanks?include_prereleases&label=release)](https://github.com/SeanVella/GuildRanks/releases)
+[![Tests](https://img.shields.io/github/actions/workflow/status/SeanVella/GuildRanks/tests.yml?label=tests)](TESTING.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## Features
+![Guild Ranks leaderboard](docs/gallery/01-leaderboard.jpg)
 
-- **Leaderboards for 14 rankings** — Guild score, gold earned, loot value, XP,
-  levels gained, damage, healing, kills, quests, bosses, dungeon/raid runs,
-  gathering, crafting, fewest deaths and play time. Per hour or totals; today,
-  this week, last week, this month or all time; filter by level range. The most
-  used rankings are one click away, with score bars and each player's rank change
-  since last week (+2, -1, new). A green dot shows who's online right now, and
-  "Online only" narrows the list to them.
-- **Player cards** — click a name for their Guild score broken down by category,
-  every stat (total and per hour), gold by source and their recent weeks.
-- **Guild score (0-100)** — placement across 8 equally weighted categories (gold,
-  levels gained, combat, quests, kills, bosses and runs, gathering and crafting,
-  fewest deaths). Fair by design: per hour of play, healers ranked on healing,
-  "levels gained" instead of raw XP, and a minimum play time to qualify.
-- **Me tab, just for you** — your stats today, this week or all time with the change
-  since last week, a 7-day chart, **personal goals** (an amount this week or month, or
-  a level to reach, with your pace), **personal bests** with a "New personal best!"
-  toast, a **rival** to race (head to head, with an alert when either of you passes
-  the other) and **weekly titles** earned by finishing #1 in a ranking (Gold Baron,
-  Quest Machine, Slayer, Iron Man...), which you can show to your guild.
-- **Session recap** — when you log in again (or anytime with `/granks recap`): what
-  you earned and how that compares with your usual rate this week, what you did,
-  your guild rank and any new personal bests, with a button to post it in guild chat.
-- **Lead cards** — an achievement-style card with a sound when you take #1 in a
-  ranking this week, and a heads-up when someone takes it from you.
-- **Weekly MVP and Wooden spoon** — shown in game, in the minimap/data-text tooltip
-  and in the Discord post. Guilds can turn the Wooden spoon off.
-- **Copy for Discord** — results as ready-to-paste Discord text. No setup.
-- **Automatic guild detection** — your data is kept per guild; switch between the
-  guilds your alts are in. Not in a guild? You still get your own stats.
-- **Members page** — who in the roster uses the addon (and which version), so you
-  can invite the rest with the **Invite** button (posts an install message in guild
-  chat, or copy it for Discord). Officers can exclude cheaters from the rankings.
-- **Guild rules, set by your leaders** — weekly reset day and hour (realm time;
-  the window shows when the week resets and a countdown), minimum play time,
-  which gold sources count (e.g. not mail from alts), vendor or auction prices
-  for loot value. The Guild Master chooses which ranks may change them.
-- **Privacy** — every member can switch off "Share my stats with my guild";
-  their stats are then removed from guildmates' leaderboards. Members can also
-  hide just their play time ("Show my play time to my guild"), and leaders can
-  hide play time for everyone. Per-hour rankings still use it behind the scenes.
-- **Integrations (optional)** — TradeSkillMaster or Auctionator auction prices
-  for loot value (used only if installed); LibDataBroker data text for Titan Panel,
-  ElvUI, Bazooka and others; a minimap button (LibDBIcon, bundled).
-- **Session bar (optional)** — a small movable bar with your rank this week, this
-  session's gold and XP per hour, and time to next level.
-- **Hall of Fame** — MVP counts, best week per ranking, longest top-3 streaks and
-  the weekly results history; MVP trophies next to names and each player's recent
-  weeks in their tooltip.
-- **Weekly challenge and guild goal** — officers feature one ranking (with an
-  optional prize) and set a combined goal for the whole guild, shown in game and
-  in Discord.
-- **Alerts** — "Kurt just passed you in Gold/h", a "how you did" popup after the
-  weekly reset, optional guild chat announcements (your level-ups, the weekly MVP),
-  and a notice when a newer version is in use in your guild.
-- **Any client language** — game messages and gathering spells are detected in
-  your client's language. The interface is English for now and ready for
-  translations (see *Contributing*).
+</div>
 
-## How it works
+## Why install it?
 
-Each member's addon records **only their own character**, then shares it with the
-guild over WoW's hidden guild addon channel; nothing leaves the guild and no
-website is involved. That's why **everyone who wants to be ranked needs the
-addon**. Members who are online also pass along recent data for members who are
-offline, so leaderboards fill in quickly.
-
-Sharing pauses inside dungeons and raids (Blizzard blocks addon messages there)
-and resumes when you leave. Stats are self-reported, so treat it as a friendly
-competition.
+- 🏆 **A leaderboard for everything**: gold, XP, damage, healing, quests, kills, bosses,
+  gathering, crafting, play time and more, plus one **Guild score** and a **weekly MVP**.
+- ⚖️ **Fair for everyone**: ranked **per hour of play**, so a short evening can beat a long
+  weekend. Level ranges let new players compete with each other.
+- 📈 **Your own stats page**: your week against last week, goals, personal bests and a rival.
+- 🔔 **Something to chase**: a card and a sound when you take #1, a heads-up when someone
+  passes you, and weekly titles like *Gold Baron* or *Iron Man*.
+- 💬 **Ready for Discord**: one click copies the week's results to paste in your server.
+- 🔒 **Private and automatic**: no account, no website, nothing to set up.
 
 ## Install
 
-- **CurseForge / Wago app:** search for *Guild Ranks* and pick your **Forever**
-  installation.
-- **Manually:** download the latest zip from Releases and unzip it into
-  `World of Warcraft\_forever_\Interface\AddOns\`, so that you get
-  `AddOns\GuildRanks\GuildRanks.toc`.
+1. Get it from **[CurseForge](https://www.curseforge.com/projects/1808193)** (or search
+   *Guild Ranks* in the CurseForge app and pick your **Forever** installation).
+2. Log in and type **`/granks`**, or click the minimap button.
+3. Press **Invite** to tell your guildmates. Everyone who installs it shows up in the rankings.
 
-## Use
+<details>
+<summary>Manual install</summary>
 
-| Command | What it does |
+Download the latest zip from [Releases](https://github.com/SeanVella/GuildRanks/releases) and
+unzip it into `World of Warcraft\_forever_\Interface\AddOns\`, so that you get
+`AddOns\GuildRanks\GuildRanks.toc`.
+</details>
+
+## What you get
+
+| | |
 |---|---|
-| `/granks` | Open the leaderboard (or click it in the addon menu / minimap button) |
-| `/granks me` | Your own stats, goals, personal bests, rival and titles |
-| `/granks recap` | Your session recap (this session, or the last one) |
-| `/granks members` | Members page: who uses the addon, versions, exclusions |
-| `/granks hall` | Hall of Fame |
-| `/granks bar` | Show or hide the session bar |
-| `/granks weekly` | Show last week's results popup again |
-| `/granks settings` | Settings and guild rules |
-| `/granks discord` | Copy the current view for Discord |
-| `/granks invite` | Invite guildmates: post or copy an install message |
-| `/granks welcome` | Show the welcome screen again |
-| `/granks sync` | Ask the guild for fresh data |
-| `/granks minimap` | Show or hide the minimap button |
-| `/granks diag` | Diagnostics for bug reports, including guild sync timing (messages waiting, how long the last send and full sync took, latest data from each guildmate) |
-| `/granks selftest` | Check that everything the addon needs works on your client |
-| `/granks demo` / `demo off` | Preview the window with sample data |
-| `/granks log` | The last tracked changes and where they were counted |
+| ![Per hour rankings](docs/gallery/02-per-hour.jpg) | **Rankings that are fair.** Per hour or totals, today, this week, this month or all time, by level range. See who moved up or down since last week and who's online right now. |
+| ![Me tab](docs/gallery/03-me-tab.jpg) | **The Me tab.** How your week is going compared with last week, a 7-day chart, up to three goals with your pace, personal bests and a rival to race. |
+| ![Session recap](docs/gallery/04-session-recap.jpg) | **Session recap.** Each time you log in: what you earned and how it compares with your usual, what you did, your guild rank and new personal bests. Post it to guild chat in one click. |
+| ![Lead cards](docs/gallery/05-lead-cards.jpg) | **Lead cards and titles.** Take #1 in a ranking and you get a card and a sound. Lose it and you'll know. Finish the week #1 to earn a title you can show your guild. |
+| ![Hall of Fame](docs/gallery/06-hall-of-fame.jpg) | **Hall of Fame.** Every week is saved: MVP trophies, best week in each ranking, top-3 streaks, weekly challenge winners. |
+| ![Discord post](docs/gallery/07-discord.jpg) | **Copy for Discord.** MVP, wooden spoon, the top 3 in every ranking, the challenge and the guild goal, ready to paste. |
 
-Click any name for that player's card: Guild score breakdown, every stat, where
-their gold came from and their recent weeks.
+*Screenshots use sample data (try it yourself with `/granks demo`).*
+
+## Questions
+
+**Does everyone in the guild need it?**
+Yes, to be ranked. Each player's addon records only their own character and shares it with
+the guild. The **Members** tab shows who has it, and **Invite** posts an install message.
+
+**Is my data private?**
+Your stats are shared only with your guild, inside the game, over WoW's hidden addon channel.
+Nothing goes to a website. You can hide your play time or stop sharing at any time.
+
+**Will it slow my game down?**
+No. Messages are sent about once a second at most, and the window redraws at most once a
+second while it's open.
+
+**Does it work in dungeons and raids?**
+Your stats are still recorded. Sharing pauses inside instances (Blizzard blocks addon messages
+there) and catches up when you leave.
+
+**Can people cheat?**
+Stats are self-reported, so treat it as friendly competition. Officers can exclude a player
+from the rankings, and weekly titles are checked by everyone's addon.
 
 ## For guild leaders
 
-Open **Settings → Guild rules** to set your guild's rules (reset day and hour, minimum play time, show play time, gold
-sources, loot value, Wooden spoon, weekly challenge and prize, guild goal, MVP
-announcement) and press **Save & share with guild**.
-Everyone's addon then uses the same rules, so everyone sees the same rankings.
-By default the Guild Master and the first officer rank can change rules; the Guild
-Master can change that.
+Open **Settings → Guild rules** and press **Save and share**. Everyone's addon then
+uses the same rules, so everyone sees the same rankings. You can set:
 
-To share results in Discord, press **Copy for Discord** (or type `/granks discord`)
-and paste into your channel. (WoW addons can't go online, so the addon can't post by itself.)
+- the weekly reset day and hour, and the minimum play time to be ranked
+- which gold sources count (for example, not mail from alts) and how loot is valued
+- a **weekly challenge** (one featured ranking, with an optional prize) and a **guild goal**
+- whether to show play time, the Wooden spoon, and an MVP announcement in guild chat
 
-## What's measured, exactly
+By default the Guild Master and the first officer rank can change the rules.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/granks` | Open the leaderboard |
+| `/granks me` | Your stats, goals, personal bests, rival and titles |
+| `/granks recap` | Your session recap |
+| `/granks invite` | Post or copy an install message for guildmates |
+| `/granks discord` | Copy the current view for Discord |
+| `/granks demo` | Preview the window with sample data (`demo off` removes it) |
+
+<details>
+<summary>All commands</summary>
+
+| Command | What it does |
+|---|---|
+| `/granks members` | Who uses the addon, versions, exclusions |
+| `/granks hall` | Hall of Fame |
+| `/granks bar` | Show or hide the session bar (rank, gold/XP per hour, time to level) |
+| `/granks weekly` | Show last week's results popup again |
+| `/granks settings` | Settings and guild rules |
+| `/granks welcome` | Show the welcome screen again |
+| `/granks sync` | Ask the guild for fresh data |
+| `/granks minimap` | Show or hide the minimap button |
+| `/granks diag` | Diagnostics for bug reports, including guild sync timing |
+| `/granks selftest` | Check that everything the addon needs works on your client |
+| `/granks log` | The last tracked changes and where they were counted |
+</details>
+
+<details>
+<summary>What's measured, exactly</summary>
 
 | Ranking | How |
 |---|---|
+| Guild score | 0-100 from your placement in 8 equally weighted categories: gold, levels gained, combat, quests, kills, bosses and runs, gathering and crafting, fewest deaths. |
 | Gold earned | Money gained, split by source: loot, quests, vendor, Auction House, mail, trade, other. Spending isn't subtracted. |
 | Loot value | Value of items you loot: vendor price, or TSM/Auctionator price if your guild chooses auction prices. |
 | Experience / Levels gained | XP gained; "levels gained" is fair across levels (1.0 = one full level). |
@@ -139,50 +132,54 @@ and paste into your channel. (WoW addons can't go online, so the addon can't pos
 | Bosses / Runs | Boss kills; a dungeon or raid run counts once you kill a boss there. |
 | Gathering / Crafts | Herbs, ore, skins, fishing catches; items you create. |
 | Play time | Active time only (AFK time isn't counted). |
+</details>
+
+<details>
+<summary>Optional extras</summary>
+
+- TradeSkillMaster or Auctionator auction prices for loot value (used only if installed).
+- LibDataBroker data text for Titan Panel, ElvUI, Bazooka and others.
+- A minimap button (LibDBIcon, bundled) and an optional session bar.
+- Guild chat announcements for your level-ups and the weekly MVP.
+- Game messages and gathering spells are detected in any client language. The interface is
+  English for now and ready for translations.
+</details>
 
 ## Known limits
 
-- Damage and healing depend on Blizzard's damage meter being readable after
-  combat. If `/granks diag` shows the damage meter as hidden, those two rankings
-  stay empty while everything else works. If damage stays at 0, turn on the
-  built-in damage meter (*Options → Gameplay Enhancements*).
-- Very large guilds: data sharing is rate-limited by Blizzard (about one message
-  per second), so leaderboards can take a few minutes to fill after logging in.
+- Damage and healing need Blizzard's built-in damage meter. If damage stays at 0, turn it on
+  in *Options → Gameplay Enhancements*.
+- In very large guilds, leaderboards can take a few minutes to fill after you log in
+  (Blizzard limits addon messages to about one per second).
 
 ## Roadmap
 
 - Translations (German, French, Spanish, Italian, Portuguese...).
-- Guild goals with several targets, seasonal (monthly) Hall of Fame.
-- **Guild vs guild league** across realms: planned in
-  [docs/guild-vs-guild-plan.md](docs/guild-vs-guild-plan.md).
+- Guild goals with several targets, a monthly Hall of Fame.
+- A **guild vs guild league** across realms: see [the plan](docs/guild-vs-guild-plan.md).
 
-## Testing
-
-An automated simulated guild (87 scenario tests, run on Lua 5.1 and 5.3 on every
-push) plus in-game test tools and a beta channel: see [TESTING.md](TESTING.md).
+Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/GuildRanks/issues).
 
 ## Contributing
 
-Bug reports and pull requests are welcome; use the GitHub issue forms, which ask
-for `/granks diag` and `/granks selftest`. Please add or update a test in `tests/`
-with code changes.
+Pull requests are welcome. The issue forms ask for `/granks diag` and `/granks selftest`
+output. Please add or update a test in `tests/` with code changes: an automated simulated
+guild (87 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
 
-Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the
-instructions at the top, and add the file to `GuildRanks.toc`.
+Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the instructions at the
+top, and add the file to `GuildRanks.toc`.
 
-## Publishing (maintainers)
+<details>
+<summary>Publishing (maintainers)</summary>
 
-Releases are built by the [BigWigs packager](https://github.com/BigWigsMods/packager):
-push a tag like `v1.1.0` (or `v1.1.0-beta.1` for a beta) and GitHub Actions runs the
-tests, packages the addon and publishes it to
-GitHub Releases, plus CurseForge and Wago once you:
-
-1. Create the projects on CurseForge and Wago Addons (game version: WoW Forever).
-2. Put their IDs in `GuildRanks.toc` (`## X-Curse-Project-ID:` and `## X-Wago-ID:`).
-3. Add API tokens as repository secrets: `CF_API_KEY` (CurseForge → account →
-   API tokens) and `WAGO_API_TOKEN` (Wago → account → API keys).
+Releases are built by the [BigWigs packager](https://github.com/BigWigsMods/packager): push a
+tag like `v1.1.0` (or `v1.1.0-beta.1` for a beta) and GitHub Actions runs the tests, packages
+the addon and publishes it to GitHub Releases and CurseForge (and Wago once `## X-Wago-ID:` is
+set in `GuildRanks.toc` and a `WAGO_API_TOKEN` secret is added). CurseForge uses the
+`CF_API_KEY` repository secret.
+</details>
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Guild Ranks is free and always will be, in line with
-Blizzard's UI Add-On Development Policy.
+MIT, see [LICENSE](LICENSE). Guild Ranks is free and always will be, in line with Blizzard's
+UI Add-On Development Policy.
