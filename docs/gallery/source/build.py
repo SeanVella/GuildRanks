@@ -343,12 +343,12 @@ def slide_me():
 
 # ---------------------------------------------------------------- 3. Recap
 def recap_view():
-    b = ['<div class="win" style="width:460px;height:372px">']
+    b = ['<div class="win" style="width:460px;height:376px">']
     b.append(a(22, 18, "gold lg", "Your last session") + a(258, 22, "dis sm", "Sat 22:41", w=160, align="right")
-             + '<div class="close">✕</div>' + a(22, 40, "dis sm", "4h 01m played  ·  compared with your average this week"))
+             + '<div class="close">✕</div>' + a(22, 40, "dis sm", "4h 01m played  ·  % = compared with your usual rate this week"))
     b.append(a(22, 60, "gold nm", "What you earned"))
-    big = [("Gold", "+" + money("38g 52s"), money("9g 35s") + '/h  <span style="color:#40ff40">+24% vs usual</span>'),
-           ("Experience", "151,880", '37,770/h  <span style="color:#40ff40">+8% vs usual</span>'),
+    big = [("Gold", "+" + money("38g 52s"), money("9g 35s") + '/h  <span style="color:#40ff40">+24%</span>'),
+           ("Experience", "151,880", '37,770/h  <span style="color:#40ff40">+8%</span>'),
            ("Levels", "+0.62", '<span style="color:#808080">now level 52</span>')]
     for i, (lab, val, note) in enumerate(big):
         x = 20 + i * 140
@@ -357,7 +357,7 @@ def recap_view():
     b.append(a(22, 142, "gold nm", "What you did"))
     icons = ["📜", "⚔️", "💀", "🌿", "🔨", "🏆"]
     small = [("Quests", "14"), ("Kills", "231"), ("Deaths", "1"), ("Gathered", "38"), ("Crafted", "6"),
-             ("Guild rank this week", '#2  <span style="color:#40ff40">+3</span>')]
+             ("Guild rank", '#2  <span style="color:#40ff40">+3</span>')]
     for i, (lab, val) in enumerate(small):
         col, row = i % 3, i // 3
         x, y = 20 + col * 140, 160 + row * 34
@@ -372,8 +372,8 @@ def recap_view():
         b.append(f'<div class="tile" style="left:20px;top:{y}px;width:414px;height:32px"></div>')
         b.append(f'<div style="position:absolute;left:26px;top:{y+6}px">{TROPHY.replace("class=\"ico\"", "style=\"width:20px;height:20px\"")}</div>')
         b.append(a(52, y + 3, "hl nm", f'New personal best: <span class="gold">{lab}</span>') + a(52, y + 17, "dis sm", note))
-    b.append('<div class="btn" style="left:20px;top:332px;width:150px">Post in guild chat</div>')
-    b.append('<div class="btn" style="left:360px;top:332px;width:80px">Close</div>')
+    b.append('<div class="btn" style="left:20px;top:336px;width:150px">Post in guild chat</div>')
+    b.append('<div class="btn" style="left:360px;top:336px;width:80px">Close</div>')
     b.append("</div>")
     chat = ('<div style="margin-top:26px;width:460px;font:500 12.5px/1.4 Inter;color:#40ff40;text-shadow:0 1px 2px #000">'
             '[Guild] [Corvin]: My session: 4h 01m · +38g 52s · +0.6 levels · 14 quests · 231 kills · 2 new personal best(s) (Guild Ranks)</div>')

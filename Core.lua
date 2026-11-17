@@ -730,13 +730,12 @@ function ns.RankChanges(g, rows, metricKey, period, perHour, bracket)
 	return out
 end
 
+-- Where to get the addon (shown in the Discord post and the invite message)
+ns.CURSEFORGE = "curseforge.com/wow/addons/guild-ranks"
+
 -- Ready-made invite message for guild chat or Discord (kept under 255 characters)
 function ns.InviteMessage()
-	local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
-	local site = get and get("GuildRanks", "X-Website")
-	if type(site) ~= "string" or site == "" then site = "https://github.com/SeanVella/GuildRanks" end
-	site = site:gsub("^https?://", "") .. "/releases"
-	return string.format(ns.L["Join our guild competition! Install Guild Ranks: CurseForge app, search \"Guild Ranks\" (Forever), or %s"], site)
+	return string.format(ns.L["Join our guild competition! Install Guild Ranks from the CurseForge app (search \"Guild Ranks\", Forever) or %s"], ns.CURSEFORGE)
 end
 
 -- Rankings to choose from in the window (Play time is left out when the guild hides it)

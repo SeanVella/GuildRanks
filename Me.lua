@@ -493,9 +493,9 @@ end
 
 local function VsText(pct)
 	if not pct then return nil end
-	if pct > 0 then return "|cff40ff40+" .. pct .. "% " .. L["vs usual"] .. "|r" end
-	if pct < 0 then return "|cffffaa40" .. pct .. "% " .. L["vs usual"] .. "|r" end
-	return "|cff808080" .. L["as usual"] .. "|r"
+	if pct > 0 then return "|cff40ff40+" .. pct .. "%|r" end
+	if pct < 0 then return "|cffffaa40" .. pct .. "%|r" end
+	return "|cff808080=|r"
 end
 
 -- Show a session (default: this session if it has a minute of play, else the last one)
@@ -516,7 +516,7 @@ function ns.ShowRecap(s, isLast)
 	local d = P.SessionDetails(s)
 	recap.title:SetText(isLast and L["Your last session"] or L["This session so far"])
 	recap.when:SetText(date("%a %H:%M", s.finish or time()))
-	local compared = (d.goldVs or d.xpVs) and ("  ·  " .. L["compared with your average this week"]) or ""
+	local compared = (d.goldVs or d.xpVs) and ("  ·  " .. L["% = compared with your usual rate this week"]) or ""
 	recap.sub:SetText(string.format(L["%s played"], ns.FormatTime(d.played)) .. compared)
 
 	local goldNote = ns.FormatMoney(d.goldph) .. "/h" .. (d.goldVs and ("  " .. VsText(d.goldVs)) or "")
@@ -536,7 +536,7 @@ function ns.ShowRecap(s, isLast)
 	local small = {
 		{ ICON.quests, L["Quests"], tostring(d.quests) }, { ICON.kills, L["Kills"], tostring(d.kills) },
 		{ ICON.deaths, L["Deaths"], tostring(d.deaths) }, { ICON.gathers, L["Gathered"], tostring(d.gathers) },
-		{ ICON.crafts, L["Crafted"], tostring(d.crafts) }, { ICON.rank, L["Guild rank this week"], rankText },
+		{ ICON.crafts, L["Crafted"], tostring(d.crafts) }, { ICON.rank, L["Guild rank"], rankText },
 	}
 	for i, t in ipairs(small) do
 		recap.small[i].icon:SetTexture(t[1]); recap.small[i].label:SetText(t[2]); recap.small[i].value:SetText(t[3])
@@ -552,7 +552,8 @@ function ns.ShowRecap(s, isLast)
 			t.note:SetText((b.new and b.old) and string.format(L["%s (was %s)"], b.new, b.old) or "")
 		end
 	end
-	recap:SetHeight((n > 0 and 296 or 250) + n * 36)
+	-- tiles end at 224 px; highlights (if any) start at 252; buttons sit 18 px from the bottom
+	recap:SetHeight((n > 0 and 304 or 282) + n * 36)
 	recap.chat = P.SessionChat(s)
 	if IsInGuild() then recap.post:Enable() else recap.post:Disable() end
 	recap:Show()

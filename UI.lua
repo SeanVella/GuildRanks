@@ -448,6 +448,15 @@ local function GetMemberRow(i)
 	return r
 end
 
+-- Officers see the invite nudge while some members don't have the addon, until "Not now" (or Invite) this week
+function UI.ShouldNudge(g, withAddon, total)
+	if not g or g.solo or g ~= ns.G() or not ns.rosterReady or not ns.CanEditRules(g) then return false end
+	if not withAddon or not total or total < 2 or withAddon >= total then return false end
+	return g.nudgeWeek ~= ns.WeekStart(g)
+end
+function UI.NudgeText() return w.nudge and w.nudge:IsShown() and w.nudge.text:GetText() or nil end -- for the automated tests
+function UI.NudgeClick(which) local b = w.nudge and w.nudge[which]; if b then b:GetScript("OnClick")(b) end end -- for the automated tests
+
 local function RefreshMembers(g)
 	local list = {}
 	local useRoster = g == ns.G() and not g.solo and ns.rosterReady
@@ -491,6 +500,15 @@ local function RefreshMembers(g)
 	for i = #list + 1, #memberRows do memberRows[i]:Hide() end
 	w.membersContent:SetHeight(math.max(1, #list * ROW_H))
 
+	local showNudge = UI.ShouldNudge(g, withAddon, #list)
+	w.nudge:SetShown(showNudge)
+	if showNudge then
+		w.nudge.text:SetText("|cffffd100" .. string.format(L["%d of %d members use Guild Ranks."], withAddon, #list) .. "|r  |cffa0a0a0"
+			.. string.format(L["The other %d aren't on the leaderboards yet."], #list - withAddon) .. "|r")
+	end
+	w.membersInner:ClearAllPoints()
+	w.membersInner:SetPoint("TOPLEFT", 0, showNudge and -36 or 0)
+	w.membersInner:SetPoint("BOTTOMRIGHT")
 	subtitle:SetText(useRoster
 		and string.format(L["%d members  ·  %d use Guild Ranks  ·  invite the rest to join in!"], #list, withAddon)
 		or L["Roster is only available for your current guild"])
@@ -927,6 +945,7 @@ function UI.Refresh()
 		RefreshList(g)
 	end
 	if ns.Card and ns.Card.Refresh then ns.Card.Refresh() end
+	if ns.Welcome and ns.Welcome.IsShown() then ns.Welcome.Update() end
 end
 
 function UI.Show(view)
@@ -1092,6 +1111,38 @@ local function BuildMembers()
 	v:SetPoint("BOTTOMRIGHT", 0, 56)
 	v:Hide()
 	views.members = v
+	-- Officer nudge: "12 of 40 members use Guild Ranks", shown until dismissed for the week
+	local nudge = CreateFrame("Frame", nil, v)
+	nudge:SetPoint("TOPLEFT", 18, -2)
+	nudge:SetSize(548, 30)
+	local nbg = nudge:CreateTexture(nil, "BACKGROUND")
+	nbg:SetAllPoints()
+	nbg:SetColorTexture(0.17, 0.14, 0.05, 0.95)
+	local nline = nudge:CreateTexture(nil, "BORDER")
+	nline:SetPoint("BOTTOMLEFT"); nline:SetPoint("BOTTOMRIGHT"); nline:SetHeight(1)
+	nline:SetColorTexture(0.54, 0.45, 0.19, 1)
+	nudge.text = FS(nudge, "GameFontHighlightSmall")
+	nudge.text:SetPoint("LEFT", 8, 0)
+	nudge.text:SetWidth(370)
+	nudge.text:SetWordWrap(true)
+	local later = MakeButton(nudge, L["Not now"], 72, function()
+		local g = ns.G()
+		if g then g.nudgeWeek = ns.WeekStart(g) end
+		UI.Refresh()
+	end)
+	later:SetPoint("RIGHT", -6, 0); later:SetHeight(20); nudge.later = later
+	local inv = MakeButton(nudge, L["Invite"], 72, function()
+		local g = ns.G()
+		if g then g.nudgeWeek = ns.WeekStart(g) end
+		if ns.Invite then ns.Invite.Show() end
+		UI.Refresh()
+	end)
+	inv:SetPoint("RIGHT", later, "LEFT", -4, 0); inv:SetHeight(20); nudge.invite = inv
+	w.nudge = nudge
+	local inner = CreateFrame("Frame", nil, v)
+	inner:SetPoint("TOPLEFT"); inner:SetPoint("BOTTOMRIGHT")
+	w.membersInner = inner
+	v = inner
 	local hdr = CreateFrame("Frame", nil, v)
 	hdr:SetPoint("TOPLEFT", 18, -4)
 	hdr:SetSize(530, 18)

@@ -326,6 +326,35 @@ local Welcome = {}
 ns.Welcome = Welcome
 local wf
 
+local loadedAt = GetTime() -- about when you logged in
+
+-- Which welcome to show:
+--   "joined"  guildmates already use Guild Ranks: "You're #9 in Froga!"
+--   "first"   nobody else in the guild has it (after a minute and a half of listening)
+--   "generic" not in a guild, sample data, or the guild's data hasn't arrived yet
+function Welcome.Variant(g)
+	if not g or g.solo or g.demo then return "generic" end
+	local others = 0
+	for key in pairs(g.players) do if key ~= ns.me then others = others + 1 end end
+	if others > 0 then return "joined", others end
+	if GetTime() - loadedAt >= 90 then return "first", 0 end
+	return "generic", 0
+end
+
+local function Guildmates(g, max)
+	local list = {}
+	for key, p in pairs(g.players) do if key ~= ns.me then list[#list + 1] = { key = key, p = p } end end
+	table.sort(list, function(a, b)
+		if (a.p.seen or 0) ~= (b.p.seen or 0) then return (a.p.seen or 0) > (b.p.seen or 0) end
+		return a.key < b.key
+	end)
+	local names = {}
+	for i = 1, math.min(max, #list) do names[i] = H().ClassColored(ns.ShortName(list[i].key), list[i].p.class) end
+	local text = table.concat(names, ", ")
+	if #list > max then text = text .. "  |cff8a8a8a" .. string.format(L["and %d more"], #list - max) .. "|r" end
+	return text
+end
+
 local function CreateWelcome()
 	local main = ns.UI.Frame()
 	wf = CreateFrame("Frame", nil, main)
@@ -336,14 +365,16 @@ local function CreateWelcome()
 	local shade = wf:CreateTexture(nil, "BACKGROUND")
 	shade:SetAllPoints()
 	shade:SetColorTexture(0, 0, 0, 0.88)
-	local title = H().FS(wf, "GameFontNormalHuge", "CENTER")
-	title:SetPoint("TOP", 0, -90)
-	title:SetText(L["Welcome to Guild Ranks"])
+	wf.title = H().FS(wf, "GameFontNormalHuge", "CENTER")
+	wf.title:SetPoint("TOP", 0, -90)
+	wf.title:SetWidth(540)
+	-- generic: three numbered lines
 	local lines = {
 		L["Play as usual. Your gold, XP, damage and more are counted per hour."],
 		L["Guildmates with the addon show up here by themselves."],
 		L["Every week the best Guild score becomes MVP."],
 	}
+	wf.steps = {}
 	for i, text in ipairs(lines) do
 		local n = H().FS(wf, "GameFontNormalLarge", "RIGHT")
 		n:SetPoint("TOPLEFT", 70, -130 - (i - 1) * 34)
@@ -354,20 +385,66 @@ local function CreateWelcome()
 		t:SetWidth(380)
 		t:SetWordWrap(true)
 		t:SetText(text)
+		wf.steps[#wf.steps + 1] = n
+		wf.steps[#wf.steps + 1] = t
 	end
-	local tip = H().FS(wf, "GameFontDisableSmall", "CENTER")
-	tip:SetPoint("TOP", 0, -248)
-	tip:SetWidth(460)
-	tip:SetWordWrap(true)
-	tip:SetText(L["Click a name for details. Officers set the guild's rules in Settings."])
-	local sample = H().MakeButton(wf, L["Show sample data"], 150, function()
-		Welcome.Done()
-		ns.Tools.Demo(true)
-	end)
-	sample:SetPoint("TOP", -80, -290)
-	local ok = H().MakeButton(wf, L["Got it"], 150, function() Welcome.Done() end)
-	ok:SetPoint("TOP", 80, -290)
+	-- joined / first: a lead line, the guildmates, what happens next
+	wf.lead = H().FS(wf, "GameFontHighlight", "CENTER")
+	wf.lead:SetPoint("TOP", 0, -132); wf.lead:SetWidth(480); wf.lead:SetWordWrap(true)
+	wf.names = H().FS(wf, "GameFontHighlight", "CENTER")
+	wf.names:SetPoint("TOP", 0, -156); wf.names:SetWidth(480); wf.names:SetWordWrap(true)
+	wf.tip = H().FS(wf, "GameFontDisableSmall", "CENTER")
+	wf.tip:SetPoint("TOP", 0, -248)
+	wf.tip:SetWidth(460)
+	wf.tip:SetWordWrap(true)
+	wf.left = H().MakeButton(wf, "", 150, function() if wf.leftAction then wf.leftAction() end end)
+	wf.left:SetPoint("TOP", -80, -290)
+	wf.right = H().MakeButton(wf, "", 150, function() if wf.rightAction then wf.rightAction() end end)
+	wf.right:SetPoint("TOP", 80, -290)
 	wf:Hide()
+end
+
+-- Fill in the welcome for the guild being viewed (called again when guildmates' data arrives)
+function Welcome.Update()
+	if not wf then return end
+	local g = ns.V()
+	local variant, others = Welcome.Variant(g)
+	wf.variant = variant
+	local generic = variant == "generic"
+	for _, el in ipairs(wf.steps) do el:SetShown(generic) end
+	wf.lead:SetShown(not generic); wf.names:SetShown(variant == "joined")
+	if variant == "joined" then
+		wf.title:SetText(string.format(L["You're #%d in %s!"], others + 1, g.name))
+		wf.lead:SetText(string.format(others == 1 and L["%d guildmate already uses Guild Ranks:"] or L["%d guildmates already use Guild Ranks:"], others))
+		wf.names:SetText(Guildmates(g, 5))
+		wf.tip:SetText(string.format(L["Your stats count from now. You'll show up on the leaderboard after %d min of play."], g.rules.minMinutes or 0))
+		wf.left:SetText(L["See the leaderboard"]); wf.leftAction = function() Welcome.Done() end
+		wf.right:SetText(L["Open your Me tab"]); wf.rightAction = function() Welcome.Done(); ns.UI.Show("me") end
+	elseif variant == "first" then
+		wf.title:SetText(string.format(L["You're the first in %s"], g.name))
+		wf.lead:SetText(L["Guild Ranks is more fun with guildmates. Invite them and they'll show up here by themselves."])
+		wf.tip:SetText(L["Your stats count from now. Officers set the guild's rules in Settings."])
+		wf.left:SetText(L["Invite"]); wf.leftAction = function() Welcome.Done(); if ns.Invite then ns.Invite.Show() end end
+		wf.right:SetText(L["Show sample data"]); wf.rightAction = function() Welcome.Done(); ns.Tools.Demo(true) end
+	else
+		wf.title:SetText(L["Welcome to Guild Ranks"])
+		wf.tip:SetText(L["Click a name for details. Officers set the guild's rules in Settings."])
+		wf.left:SetText(L["Show sample data"]); wf.leftAction = function() Welcome.Done(); ns.Tools.Demo(true) end
+		wf.right:SetText(L["Got it"]); wf.rightAction = function() Welcome.Done() end
+	end
+end
+
+function Welcome.Texts() -- for the automated tests
+	if not (wf and wf:IsShown()) then return nil end
+	local out = { wf.title:GetText(), wf.left:GetText(), wf.right:GetText() }
+	if wf.lead:IsShown() then out[#out + 1] = wf.lead:GetText() end
+	if wf.names:IsShown() then out[#out + 1] = wf.names:GetText() end
+	out[#out + 1] = wf.tip:GetText()
+	return table.concat(out, "\n")
+end
+function Welcome.Click(which) -- for the automated tests: "left" or "right"
+	local b = wf and wf[which]
+	if b then b:GetScript("OnClick")(b) end
 end
 
 -- Shows the welcome the first time (or always, when force is true)
@@ -378,6 +455,7 @@ function Welcome.Show(force)
 	if not open and ns.db.ui.welcomed then return end
 	open = true
 	if not wf then CreateWelcome() end
+	Welcome.Update()
 	wf:Show()
 end
 

@@ -12,6 +12,13 @@ New
   earned (gold, XP and levels, with your rate compared with your usual this week), what you did
   (quests, kills, deaths, gathering, crafts, guild rank and its change) and new personal bests,
   plus a one-click post to guild chat.
+- Weekly results popup redesigned: a podium for the top 3, your place and best ranking, and a
+  "Post to guild chat" button for your result (or the MVP if you weren't ranked).
+- Members tab: officers see "12 of 40 members use Guild Ranks" with an Invite button while some
+  members don't have it yet ("Not now" hides it until next week).
+- First open: "You're #9 in Froga!" with the guildmates who already use it, or "You're the first
+  in Froga" with an Invite button when nobody else has it yet.
+- The Discord post and the invite message now link to the CurseForge page.
 - Lead cards: an achievement-style card (with a sound) when you take #1 in a ranking this week,
   and a grey one when someone takes it from you. Click to open that ranking. At most once a day
   each way per ranking; turn them off in Settings → You.
@@ -50,6 +57,8 @@ Removed
   Use **Copy for Discord** to share results.
 
 Fixes
+- Session recap: the buttons no longer cover the activity tiles when there are no new personal
+  bests, and long labels no longer get cut off.
 - Healing now counts only your own spells: potions, healthstones, bandages, food, trinkets
   and other item or racial effects on yourself are left out.
 - Damage and healing no longer jump to huge numbers after a zone change or reload (a missing
@@ -71,7 +80,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (87 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (90 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

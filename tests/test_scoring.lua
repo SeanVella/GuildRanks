@@ -111,6 +111,7 @@ test("Discord text: no empty rankings, challenge and goal lines, under Discord's
 	contains(all, "prize: 100g", "prize")
 	contains(all, "Guild goal", "goal line")
 	contains(all, "Leading", "leader line")
+	contains(all, "curseforge.com/wow/addons/guild-ranks", "where to get it")
 	-- last week wording
 	local last = table.concat(c.ns.BuildDiscordText(g, "lastweek"), "\n")
 	contains(last, "Nobody qualified yet", "empty last week")

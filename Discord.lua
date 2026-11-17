@@ -78,7 +78,7 @@ function ns.BuildDiscordText(g, period)
 			end
 		end
 	end
-	lines[#lines + 1] = "-# " .. L["Tracked with the Guild Ranks addon"]
+	lines[#lines + 1] = "-# " .. L["Tracked with Guild Ranks"] .. " · " .. ns.CURSEFORGE
 
 	local chunks, cur = {}, ""
 	for _, line in ipairs(lines) do

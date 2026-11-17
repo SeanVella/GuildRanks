@@ -196,6 +196,8 @@ test("session recap: labelled sections, highlights and the guild chat line", fun
 	eq(d.gold, 32000, "details: gold")
 	eq(d.xp, 5000, "details: xp")
 	eq(d.goldVs, nil, "no comparison when the week is just this session")
+	local frame = c.env.GuildRanksRecap
+	ok(frame:GetHeight() >= 282, "tall enough that the buttons clear the tiles (fix)")
 end)
 
 test("Me tab: stats, chart, goal form, bests, rival and titles without errors", function()

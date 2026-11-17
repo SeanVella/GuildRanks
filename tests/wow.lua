@@ -230,7 +230,12 @@ FrameMT.__index = function(t, k)
 		elseif k == "SetText" then rawset(self, "_text", a)
 		elseif k == "GetParent" then return rawget(self, "_parent")
 		elseif k == "GetPoint" then return "CENTER", nil, "CENTER", 0, 0
-		elseif k == "GetStringWidth" or k == "GetStringHeight" or k == "GetWidth" or k == "GetHeight" then return 100
+		elseif k == "SetSize" then rawset(self, "_w", a); rawset(self, "_h", select(2, ...))
+		elseif k == "SetWidth" then rawset(self, "_w", a)
+		elseif k == "SetHeight" then rawset(self, "_h", a)
+		elseif k == "GetWidth" then return rawget(self, "_w") or 100
+		elseif k == "GetHeight" then return rawget(self, "_h") or 100
+		elseif k == "GetStringWidth" or k == "GetStringHeight" then return 100
 		elseif k == "CreateFontString" or k == "CreateTexture" then
 			return setmetatable({ _parent = self }, FrameMT)
 		elseif k == "SetupMenu" then rawset(self, "_menu", a)

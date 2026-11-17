@@ -241,69 +241,162 @@ local function BestRanking(g, key, range)
 	return best
 end
 
-function A.WeeklySummaryLines(g)
+-- Last week's results, for the popup and the announcement (nil with fewer than 2 ranked)
+function A.WeeklySummary(g)
 	local thisStart = ns.WeekStart(g)
 	local from = ns.ShiftDay(thisStart, -7)
 	local range = { from = from, to = thisStart }
 	local scores = ns.ComputeScores(g, range, 0)
 	if #scores < 2 then return nil end
-	local lines = {}
-	lines[#lines + 1] = string.format(L["MVP: %s (%d)"], scores[1].name, scores[1].score)
-	if g.rules.showSpoon then lines[#lines + 1] = string.format(L["Wooden spoon: %s (%d)"], scores[#scores].name, scores[#scores].score) end
+	local sum = { from = from, scores = scores }
 	for i, e in ipairs(scores) do
 		if e.key == ns.me then
 			local prevRank = ns.Hall.PreviousRank(g, ns.me, from)
-			local change = ""
-			if prevRank and prevRank ~= i then
-				change = prevRank > i and string.format(L[", up %d places"], prevRank - i) or string.format(L[", down %d places"], i - prevRank)
-			end
-			lines[#lines + 1] = string.format(L["You finished #%d of %d (%d)%s"], i, #scores, e.score, change)
-			local best = BestRanking(g, ns.me, range)
-			if best then lines[#lines + 1] = string.format(L["Your best ranking: #%d in %s"], best.rank, best.metric.short .. "/h") end
+			sum.me = { rank = i, total = #scores, score = e.score, change = prevRank and (prevRank - i) or nil }
+			sum.best = BestRanking(g, ns.me, range)
 		end
 	end
 	local leader, cmetric = ns.ChallengeLeader(g, range)
-	if leader then
-		lines[#lines + 1] = string.format(L["Challenge winner (%s): %s"], cmetric.short .. "/h", leader.name)
+	if leader then sum.challenge = { name = leader.name, class = leader.class, metric = cmetric } end
+	return sum
+end
+
+local function MeLine(me)
+	local change = ""
+	if me.change and me.change > 0 then change = string.format(L[", up %d places"], me.change)
+	elseif me.change and me.change < 0 then change = string.format(L[", down %d places"], -me.change) end
+	return string.format(L["You finished #%d of %d (%d)%s"], me.rank, me.total, me.score, change)
+end
+
+function A.WeeklySummaryLines(g)
+	local sum = A.WeeklySummary(g)
+	if not sum then return nil end
+	local scores, lines = sum.scores, {}
+	lines[#lines + 1] = string.format(L["MVP: %s (%d)"], scores[1].name, scores[1].score)
+	if g.rules.showSpoon then lines[#lines + 1] = string.format(L["Wooden spoon: %s (%d)"], scores[#scores].name, scores[#scores].score) end
+	if sum.me then
+		lines[#lines + 1] = MeLine(sum.me)
+		if sum.best then lines[#lines + 1] = string.format(L["Your best ranking: #%d in %s"], sum.best.rank, sum.best.metric.short .. "/h") end
+	end
+	if sum.challenge then
+		lines[#lines + 1] = string.format(L["Challenge winner (%s): %s"], sum.challenge.metric.short .. "/h", sum.challenge.name)
 			.. (g.rules.challengePrize and (" - " .. g.rules.challengePrize) or "")
 	end
-	return lines, from, scores
+	return lines, sum.from, scores
+end
+
+local function WeekLabel(from)
+	local t = ns.KeyToTime(from)
+	return t and date("%d %b", t) or from
+end
+
+-- One line for guild chat: your result, or the MVP if you weren't ranked
+function A.WeeklyPostText(g)
+	local sum = A.WeeklySummary(g)
+	if not sum then return nil end
+	local week = WeekLabel(sum.from)
+	local text
+	if sum.me then
+		text = string.format(L["Week of %s: I finished #%d of %d"], week, sum.me.rank, sum.me.total)
+		if sum.best then text = text .. "  ·  " .. string.format(L["best ranking #%d in %s"], sum.best.rank, sum.best.metric.short .. "/h") end
+	else
+		text = string.format(L["Week of %s: MVP %s (%d)"], week, sum.scores[1].name, sum.scores[1].score)
+	end
+	return text .. " (Guild Ranks)"
+end
+
+local PODIUM = { -- place, x offset, block height, colour
+	{ 1, 0, 48, { 0.66, 0.53, 0.12 } }, { 2, -86, 34, { 0.36, 0.36, 0.38 } }, { 3, 86, 26, { 0.48, 0.31, 0.15 } },
+}
+
+local function CreatePopup()
+	local FS = ns.UI.H.FS
+	popup = CreateFrame("Frame", "GuildRanksWeekly", UIParent, "BackdropTemplate")
+	popup:SetSize(440, 290)
+	popup:SetPoint("CENTER", 0, 120)
+	popup:SetFrameStrata("DIALOG")
+	popup:EnableMouse(true)
+	popup:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+		edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
+		insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+	tinsert(UISpecialFrames, "GuildRanksWeekly")
+	local x = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+	x:SetPoint("TOPRIGHT", -6, -6)
+	popup.title = FS(popup, "GameFontNormalLarge", "CENTER")
+	popup.title:SetPoint("TOP", 0, -20)
+	popup.places = {}
+	for _, pl in ipairs(PODIUM) do
+		local place, dx, h, col = pl[1], pl[2], pl[3], pl[4]
+		local block = popup:CreateTexture(nil, "ARTWORK")
+		block:SetSize(76, h)
+		block:SetPoint("BOTTOM", popup, "TOP", dx, -112)
+		block:SetColorTexture(col[1], col[2], col[3], 1)
+		local num = FS(popup, place == 1 and "GameFontNormalLarge" or "GameFontHighlightLarge", "CENTER")
+		num:SetPoint("CENTER", block, "CENTER", 0, 0)
+		num:SetText(tostring(place))
+		local name = FS(popup, "GameFontHighlight", "CENTER")
+		name:SetPoint("BOTTOM", block, "TOP", 0, 4)
+		name:SetWidth(100)
+		popup.places[place] = { block = block, num = num, name = name }
+	end
+	popup.me = FS(popup, "GameFontHighlight", "CENTER")
+	popup.me:SetPoint("TOP", 0, -124)
+	popup.me:SetWidth(400)
+	popup.extra = FS(popup, "GameFontDisableSmall", "CENTER")
+	popup.extra:SetPoint("TOP", 0, -146)
+	popup.extra:SetWidth(400)
+	popup.extra:SetSpacing(3)
+	local open = ns.UI.H.MakeButton(popup, L["Leaderboard"], 110, function()
+		popup:Hide(); ns.db.view.period = "lastweek"; ns.UI.Show("list")
+	end)
+	open:SetPoint("BOTTOMLEFT", 20, 18)
+	popup.post = ns.UI.H.MakeButton(popup, L["Post to guild chat"], 150, function()
+		if not CanChat() then ns.Print(L["Guild chat isn't available right now."]); return end
+		local text = A.WeeklyPostText(popup.guild)
+		if text then GuildChat(text) end
+		popup.post:Disable()
+	end)
+	popup.post:SetPoint("BOTTOM", 0, 18)
+	local copy = ns.UI.H.MakeButton(popup, L["Copy for Discord"], 130, function()
+		popup:Hide(); ns.ShowDiscordCopy(popup.guild, "lastweek")
+	end)
+	copy:SetPoint("BOTTOMRIGHT", -20, 18)
 end
 
 function A.ShowWeeklyPopup(g)
-	local lines, from = A.WeeklySummaryLines(g)
-	if not lines then return false end
-	if not popup then
-		popup = CreateFrame("Frame", "GuildRanksWeekly", UIParent, "BackdropTemplate")
-		popup:SetSize(420, 220)
-		popup:SetPoint("CENTER", 0, 120)
-		popup:SetFrameStrata("DIALOG")
-		popup:EnableMouse(true)
-		popup:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-			edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
-			insets = { left = 11, right = 12, top = 12, bottom = 11 } })
-		tinsert(UISpecialFrames, "GuildRanksWeekly")
-		popup.title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-		popup.title:SetPoint("TOP", 0, -20)
-		popup.body = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		popup.body:SetPoint("TOP", 0, -50)
-		popup.body:SetWidth(380)
-		popup.body:SetSpacing(4)
-		local open = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-		open:SetSize(120, 22); open:SetPoint("BOTTOMLEFT", 20, 18); open:SetText(L["Leaderboard"])
-		open:SetScript("OnClick", function() popup:Hide(); ns.db.view.period = "lastweek"; ns.UI.Toggle("list") end)
-		local copy = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-		copy:SetSize(140, 22); copy:SetPoint("BOTTOM", 0, 18); copy:SetText(L["Copy for Discord"])
-		copy:SetScript("OnClick", function() popup:Hide(); ns.ShowDiscordCopy(ns.G(), "lastweek") end)
-		local close = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-		close:SetSize(90, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText(CLOSE or L["Close"])
-		close:SetScript("OnClick", function() popup:Hide() end)
+	local sum = A.WeeklySummary(g)
+	if not sum then return false end
+	if not popup then CreatePopup() end
+	popup.guild = g
+	local cc = ns.UI.H.ClassColored
+	popup.title:SetText(string.format(L["The week of %s is over!"], WeekLabel(sum.from)))
+	for place, p in ipairs(popup.places) do
+		local e = sum.scores[place]
+		p.block:SetShown(e ~= nil); p.num:SetShown(e ~= nil); p.name:SetShown(e ~= nil)
+		if e then p.name:SetText(cc(e.name, e.class) .. (place == 1 and (" |cffffd100" .. L["MVP"] .. "|r") or "")) end
 	end
-	local t = ns.KeyToTime(from)
-	popup.title:SetText(string.format(L["The week of %s is over!"], t and date("%d %b", t) or from))
-	popup.body:SetText(table.concat(lines, "\n"))
+	popup.me:SetText(sum.me and MeLine(sum.me):gsub("(, [%w ]+ places)", "|cff40ff40%1|r") or L["You weren't ranked last week."])
+	local extra = {}
+	if sum.best then extra[#extra + 1] = string.format(L["Your best ranking: #%d in %s"], sum.best.rank, sum.best.metric.short .. "/h") end
+	if sum.challenge then
+		extra[#extra + 1] = string.format(L["Challenge winner (%s): %s"], sum.challenge.metric.short .. "/h", cc(sum.challenge.name, sum.challenge.class))
+			.. (g.rules.challengePrize and (" - " .. g.rules.challengePrize) or "")
+	end
+	if g.rules.showSpoon then
+		local last = sum.scores[#sum.scores]
+		extra[#extra + 1] = string.format(L["Wooden spoon: %s (%d)"], cc(last.name, last.class), last.score)
+	end
+	popup.extra:SetText(table.concat(extra, "\n"))
+	popup.post:Enable()
 	popup:Show()
 	return true
+end
+
+function A.WeeklyPopupText() -- for the automated tests
+	if not (popup and popup:IsShown()) then return nil end
+	local out = { popup.title:GetText(), popup.me:GetText(), popup.extra:GetText() }
+	for place, p in ipairs(popup.places) do if p.name:IsShown() then out[#out + 1] = place .. ". " .. p.name:GetText() end end
+	return table.concat(out, "\n")
 end
 
 -- Once per week, after the reset: popup for me, MVP announcement for the guild

@@ -113,7 +113,7 @@ test("invite: message under 255 characters, posted to guild chat in one click", 
 	local msg = ns.Invite.Message()
 	ok(msg and #msg <= 255, "fits in one chat message")
 	contains(msg, "Guild Ranks", "names the addon")
-	contains(msg, "/releases", "download link")
+	contains(msg, "curseforge.com/wow/addons/guild-ranks", "CurseForge link")
 	ns.Invite.Post()
 	eq(#w.chat, 1, "posted once")
 	eq(w.chat[1].msg, msg, "the same message")
@@ -252,4 +252,82 @@ test("online only: a clear message when nobody on the list is online", function(
 	g.rules.excluded[sean.key] = true -- Sean (the only one online) isn't on the board
 	ns.UI.Show("list")
 	eq(#ns.UI.VisibleRows(), 0, "nobody shown")
+end)
+
+test("weekly popup: podium, your place, one-click post to guild chat", function()
+	local w, kurt, sean, maria, g = TwoWeeks()
+	local ns = sean.ns
+	ok(ns.Alerts.ShowWeeklyPopup(g), "popup shown")
+	local text = ns.Alerts.WeeklyPopupText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+	contains(text, "is over!", "title")
+	contains(text, "1. Kurt MVP", "MVP on the podium")
+	contains(text, "2. Sean", "second place")
+	contains(text, "3. Maria", "third place")
+	contains(text, "You finished #2 of 3", "my place")
+	contains(text, "Your best ranking", "best ranking")
+	local post = sean.env.GuildRanksWeekly.post
+	local before = #w.chat
+	post:GetScript("OnClick")(post)
+	eq(#w.chat, before + 1, "posted once")
+	local msg = w.chat[#w.chat].msg
+	contains(msg, "I finished #2 of 3", "my result")
+	contains(msg, "(Guild Ranks)", "names the addon")
+	ok(#msg <= 255, "fits one chat message")
+	ok(not post:IsEnabled(), "button disabled after posting")
+	-- not ranked last week: posts the MVP instead
+	ns.GetPlayer(g, sean.key).days[ns.ShiftDay(ns.WeekStart(g), -3)] = nil
+	contains(ns.Alerts.WeeklyPostText(g), "MVP Kurt", "MVP line when you weren't ranked")
+end)
+
+test("members tab: officers get an invite nudge until 'Not now'; members never see it", function()
+	local w, kurt, sean, maria, g = TwoWeeks()
+	local ns = sean.ns
+	ns.db.ui.welcomed = true
+	w:AddRosterMember("Froga", "Ann-Firemaw", 4, 20, "MAGE")
+	ns.ReadRoster()
+	ns.UI.Show("members")
+	local text = ns.UI.NudgeText()
+	ok(text, "nudge shown to an officer")
+	contains(text, "of 5 members use Guild Ranks", "counts")
+	ns.UI.NudgeClick("later")
+	eq(ns.UI.NudgeText(), nil, "hidden after Not now")
+	eq(g.nudgeWeek, ns.WeekStart(g), "for this week")
+	g.nudgeWeek = "2000-01-01" -- a new week
+	ns.UI.Refresh()
+	ok(ns.UI.NudgeText(), "back next week")
+	ns.UI.NudgeClick("invite")
+	ok(ns.Invite.Message(), "Invite opens the invite dialog")
+	eq(ns.UI.NudgeText(), nil, "and hides the nudge for the week")
+	-- a plain member
+	maria:Login()
+	maria.ns.db.ui.welcomed = true
+	maria.ns.ReadRoster()
+	maria.ns.UI.Show("members")
+	eq(maria.ns.UI.NudgeText(), nil, "members don't get the nudge")
+end)
+
+test("welcome: 'You're #N' when guildmates use it, 'You're the first' when nobody does", function()
+	local w, kurt, sean, maria, g = TwoWeeks()
+	local ns = sean.ns
+	sean:Slash("")
+	local text = ns.Welcome.Texts():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+	contains(text, "You're #4 in Froga!", "joined title")
+	contains(text, "3 guildmates already use Guild Ranks", "count")
+	contains(text, "Kurt", "names guildmates")
+	contains(text, "after 30 min of play", "what happens next")
+	ns.Welcome.Click("right")
+	eq(ns.UI.Current(), "me", "Open your Me tab")
+	eq(ns.db.ui.welcomed, true, "dismissed")
+
+	local w2 = NewWorld()
+	local _, s2 = StandardGuild(w2)
+	s2:Login()
+	s2:Slash("")
+	contains(s2.ns.Welcome.Texts(), "Welcome to Guild Ranks", "generic while the guild's data may still arrive")
+	w2:Advance(100)
+	s2.ns.UI.Refresh()
+	contains(s2.ns.Welcome.Texts(), "You're the first in Froga", "first in the guild")
+	s2.ns.Welcome.Click("left")
+	ok(s2.ns.Invite.Message(), "Invite opens the invite dialog")
+	eq(s2.ns.db.ui.welcomed, true, "dismissed")
 end)
