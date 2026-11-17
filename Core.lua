@@ -80,7 +80,9 @@ function ns.DefaultRules()
 		resetDay = 4,            -- Wednesday (1 = Sunday ... 7 = Saturday)
 		resetHour = 0,           -- hour (realm time) the day and the week start; 5 = 05:00
 		minMinutes = 30,         -- minimum play time in the period to be ranked
-		gold = { loot = true, quest = true, vendor = true, ah = true, mail = true, trade = true, other = true },
+		-- Auction House and mail gold are earned while you're offline (or sent by alts) but collected in
+		-- seconds, so they'd blow up Gold/h: off unless the guild switches them on
+		gold = { loot = true, quest = true, vendor = true, ah = false, mail = false, trade = true, other = true },
 		managerRank = 1,         -- lowest rank index that may change rules (0 = Guild Master)
 		showSpoon = true,        -- show the "Wooden spoon" (last place) award
 		itemValue = "vendor",    -- loot value: "vendor" (fair for everyone) or "auction" (TSM/Auctionator)
@@ -125,6 +127,13 @@ function ns.InitDB()
 	for _, g in pairs(ns.db.guilds) do
 		if type(g.rules) ~= "table" then g.rules = {} end
 		CopyDefaults(ns.DefaultRules(), g.rules)
+		-- 1.1.0: AH and mail gold became opt-in. Guilds whose rules nobody has saved yet get the new default.
+		if not g.rules.goldDefaults2 then
+			g.rules.goldDefaults2 = true
+			if (g.rules.version or 0) == 0 and type(g.rules.gold) == "table" then
+				g.rules.gold.ah, g.rules.gold.mail = false, false
+			end
+		end
 		g.players = g.players or {}
 		g.hidden = g.hidden or {}
 	end

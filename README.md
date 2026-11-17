@@ -82,7 +82,7 @@ Open **Settings → Guild rules** and press **Save and share**. Everyone's addon
 uses the same rules, so everyone sees the same rankings. You can set:
 
 - the weekly reset day and hour, and the minimum play time to be ranked
-- which gold sources count (for example, not mail from alts) and how loot is valued
+- which gold sources count (Auction House and mail are off by default) and how loot is valued
 - a **weekly challenge** (one featured ranking, with an optional prize) and a **guild goal**
 - whether to show play time, the Wooden spoon, and an MVP announcement in guild chat
 
@@ -123,7 +123,7 @@ By default the Guild Master and the first officer rank can change the rules.
 | Ranking | How |
 |---|---|
 | Guild score | 0-100 from your placement in 8 equally weighted categories: gold, levels gained, combat, quests, kills, bosses and runs, gathering and crafting, fewest deaths. |
-| Gold earned | Money gained, split by source: loot, quests, vendor, Auction House, mail, trade, other. Spending isn't subtracted. |
+| Gold earned | Money gained, split by source: loot, quests, vendor, trade, other. Auction House sales and mailed gold are off by default (collected in seconds but earned offline or sent by alts); guild leaders can switch them on. Spending isn't subtracted. |
 | Loot value | Value of items you loot: vendor price, or TSM/Auctionator price if your guild chooses auction prices. |
 | Experience / Levels gained | XP gained; "levels gained" is fair across levels (1.0 = one full level). |
 | Damage / Healing | From Blizzard's built-in damage meter, read after each fight. Healing counts only your own spells (no potions, healthstones, bandages, trinkets or other item effects). |
@@ -164,7 +164,7 @@ Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/Guild
 
 Pull requests are welcome. The issue forms ask for `/granks diag` and `/granks selftest`
 output. Please add or update a test in `tests/` with code changes: an automated simulated
-guild (90 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
+guild (92 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
 
 Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the instructions at the
 top, and add the file to `GuildRanks.toc`.

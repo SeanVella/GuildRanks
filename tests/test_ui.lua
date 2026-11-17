@@ -26,6 +26,7 @@ local function TwoWeeks()
 end
 
 local function Controls(client) return client.ns.UI.Internals() end
+function UI_Summary(client) return client.ns.UI.RulesSummary(client:G()) end
 
 test("rank changes compare with the previous period: up, down, same and new", function()
 	local w, kurt, sean, maria, g = TwoWeeks()
@@ -147,14 +148,15 @@ test("settings: members see a plain summary; officers edit with unsaved changes,
 	sw.discard:GetScript("OnClick")(sw.discard)
 	ok(not sw.unsaved:IsShown(), "discarded")
 	eq(sw.pending.showSpoon, true, "back to the saved value")
-	sw.gold.mail:SetChecked(false)
-	sw.gold.mail:GetScript("OnClick")(sw.gold.mail)
+	contains(UI_Summary(sean), "except Auction House and mail", "AH and mail are off by default")
+	sw.gold.trade:SetChecked(false)
+	sw.gold.trade:GetScript("OnClick")(sw.gold.trade)
 	sw.save:GetScript("OnClick")(sw.save)
 	ok(not sw.unsaved:IsShown(), "saved")
 	w:Advance(30)
-	eq(maria:G().rules.gold.mail, false, "Maria got the new rule")
+	eq(maria:G().rules.gold.trade, false, "Maria got the new rule")
 	maria.ns.UI.Refresh()
-	contains(mw.summaryText:GetText(), "except mail", "summary updated")
+	contains(mw.summaryText:GetText(), "except Auction House, mail and trades", "summary updated")
 	-- the You tab
 	sw.youTab:GetScript("OnClick")(sw.youTab)
 	ok(sw.youPane:IsShown() and not sw.rulesPane:IsShown(), "You tab")

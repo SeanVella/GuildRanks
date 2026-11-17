@@ -85,14 +85,35 @@ test("Discord text: deaths line counts deaths, deathless players first (fix)", f
 end)
 
 test("gold source rules and loot value source change the numbers", function()
-	local c, g = GuildWith({ A = { playtime = 3600, g_loot = 100, g_mail = 1000, lv_vendor = 5, lv_auction = 50 } })
+	local c, g = GuildWith({ A = { playtime = 600, g_loot = 100, g_mail = 1000, g_ah = 50000, lv_vendor = 5, lv_auction = 50 } })
 	local b = g.players["A-Firemaw"].days[c.ns.Today()]
-	eq(c.ns.MetricTotal(b, "gold", g), 1100, "all sources")
-	g.rules.gold.mail = false
-	eq(c.ns.MetricTotal(b, "gold", g), 100, "mail excluded")
+	eq(c.ns.MetricTotal(b, "gold", g), 100, "AH and mail gold left out by default (fix: overnight sales blew up Gold/h)")
+	g.rules.gold.mail, g.rules.gold.ah = true, true
+	eq(c.ns.MetricTotal(b, "gold", g), 51100, "counted once the guild switches them on")
+	g.rules.gold.mail, g.rules.gold.ah = false, false
 	eq(c.ns.MetricTotal(b, "loot", g), 5, "vendor value")
 	g.rules.itemValue = "auction"
 	eq(c.ns.MetricTotal(b, "loot", g), 50, "auction value")
+end)
+
+test("AH and mail gold: unsaved guild rules switch to the new default once; saved rules are kept", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean:Login()
+	local db = sean.ns.db
+	local g = sean:G()
+	-- an older save: defaults never touched (version 0) and one an officer saved
+	g.rules.gold.ah, g.rules.gold.mail, g.rules.goldDefaults2 = true, true, nil
+	local saved = sean.ns.NewGuild("Other", "Firemaw", "999")
+	db.guilds["999"] = saved
+	saved.rules.version, saved.rules.gold.ah, saved.rules.gold.mail, saved.rules.goldDefaults2 = 12345, true, true, nil
+	sean.ns.InitDB()
+	eq(g.rules.gold.ah, false, "unsaved rules: AH off")
+	eq(g.rules.gold.mail, false, "unsaved rules: mail off")
+	eq(saved.rules.gold.ah, true, "officer's saved choice kept")
+	g.rules.gold.ah = true
+	sean.ns.InitDB()
+	eq(g.rules.gold.ah, true, "migrates only once")
 end)
 
 test("Discord text: no empty rankings, challenge and goal lines, under Discord's limit (fix)", function()

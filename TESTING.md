@@ -16,7 +16,7 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-90 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+92 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
@@ -70,6 +70,7 @@ end)
 - [ ] `/granks selftest` shows no FAIL for everyone
 - [ ] Each player sees the others within a minute (`/granks sync` if not)
 - [ ] Loot gold, hand in a quest, sell to a vendor, take mail: `/granks log` shows the right source
+- [ ] Collect Auction House sales from the mailbox: Gold and Gold/h don't change (unless the guild turned AH on)
 - [ ] After a fight, damage appears (selftest "Damage meter readable" should PASS out of combat)
 - [ ] An officer changes a rule and saves: every member sees it in Settings
 - [ ] Log out one member; a new member logging in still sees the logged-out member's stats

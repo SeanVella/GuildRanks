@@ -313,3 +313,22 @@ test("lead cards: gold card when you take #1, grey card when you lose it, once a
 	A.CheckLead("quests")
 	eq(A.CardText(), nil, "no cards when switched off")
 end)
+
+test("personal gold (Me tab, recap, goals, bests) follows the guild's gold sources (fix)", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean:Login()
+	local ns, P = sean.ns, sean.ns.Personal
+	local g = sean:G()
+	eq(P.Value({ g_loot = 100, g_ah = 5000, g_mail = 700 }, "gold"), 100, "AH and mail left out by default")
+	g.rules.gold.ah = true
+	eq(P.Value({ g_loot = 100, g_ah = 5000, g_mail = 700 }, "gold"), 5100, "AH counted once the guild turns it on")
+	g.rules.gold.ah = false
+	-- a gold best inflated by AH sales is worked out again once
+	SeedDay(sean, ns.ShiftDay(ns.Today(), -2), { playtime = 3600, g_loot = 20000, g_ah = 900000 })
+	local d = ns.db.chars[ns.me].personal
+	d.records.gold = { value = 920000, day = "x" }
+	d.goldRecords2 = nil
+	P.SeedRecords()
+	eq(d.records.gold.value, 20000, "gold best without the AH sales")
+end)

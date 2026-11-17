@@ -569,11 +569,14 @@ function UI.RulesSummary(g)
 	local function add(label, value) lines[#lines + 1] = "|cffb0aa98" .. label .. ":|r  " .. value end
 	add(L["Week resets"], string.format(L["%s %02d:00 realm time"], ns.WEEKDAYS[r.resetDay] or "?", r.resetHour or 0))
 	add(L["Ranked from"], string.format(L["%d min played"], r.minMinutes or 0))
+	local SHORT = { loot = L["loot"], quest = L["quest rewards"], vendor = L["vendor sales"], ah = L["Auction House"],
+		mail = L["mail"], trade = L["trades"], other = L["other"] }
 	local off = {}
 	for _, src in ipairs(ns.GOLD_SOURCES) do
-		if not r.gold[src] then off[#off + 1] = ns.GOLD_SOURCE_LABELS[src]:lower() end
+		if not r.gold[src] then off[#off + 1] = SHORT[src] end
 	end
-	add(L["Gold counted"], #off == 0 and L["all sources"] or (L["all sources except"] .. " " .. table.concat(off, ", ")))
+	local list = #off > 1 and (table.concat(off, ", ", 1, #off - 1) .. " " .. L["and"] .. " " .. off[#off]) or off[1]
+	add(L["Gold counted"], #off == 0 and L["all sources"] or (L["all sources except"] .. " " .. list))
 	add(L["Loot value"], r.itemValue == "auction" and L["auction price"] or L["vendor price"])
 	add(L["Wooden spoon"], r.showSpoon and L["shown"] or L["off"])
 	add(L["Play time"], r.showPlaytime == false and L["hidden for everyone"] or L["shown (members can hide their own)"])
@@ -773,7 +776,8 @@ local function BuildSettings()
 		cb:SetPoint("TOPLEFT", 20 + col * 180, -164 - row * 24)
 		w.gold[src] = cb
 	end
-	Tip(w.gold.mail, L["Mail (not AH)"], L["Turn off to stop gold mailed from alts counting."])
+	Tip(w.gold.mail, L["Mail (not AH)"], L["Off by default: gold mailed from alts or friends would count as earned."])
+	Tip(w.gold.ah, L["Auction House"], L["Off by default: sales happen while you're offline but are collected in seconds, which makes Gold/h jump."])
 
 	Label(ed, L["Weekly challenge"], 22, -240)
 	w.challenge = MakeDropdown(ed, 200, ns.ChallengeChoices, function() return w.pending and w.pending.challengeMetric end, set("challengeMetric"))

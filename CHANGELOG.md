@@ -57,6 +57,11 @@ Removed
   Use **Copy for Discord** to share results.
 
 Fixes
+- Gold/h no longer shoots up when you collect Auction House sales or mailed gold: both are now
+  off by default (guild rules can switch them on). Guilds whose rules were never saved switch
+  to the new default; past numbers are corrected too. The Me tab, session recap, goals and
+  personal bests now use the same gold sources as the guild's rankings, and gold bests are
+  worked out again from your saved days.
 - Session recap: the buttons no longer cover the activity tiles when there are no new personal
   bests, and long labels no longer get cut off.
 - Healing now counts only your own spells: potions, healthstones, bandages, food, trinkets
@@ -80,7 +85,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (90 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (92 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

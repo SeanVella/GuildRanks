@@ -28,8 +28,11 @@ end
 function P.Value(b, key)
 	if not b then return 0 end
 	if key == "gold" then
+		-- the same gold sources as your guild's rankings (AH and mail are off unless the guild turns them on)
+		local g = ns.G and ns.G()
+		local enabled = (g and g.rules and g.rules.gold) or ns.DefaultRules().gold
 		local t = 0
-		for _, src in ipairs(ns.GOLD_SOURCES) do t = t + (b["g_" .. src] or 0) end
+		for _, src in ipairs(ns.GOLD_SOURCES) do if enabled[src] then t = t + (b["g_" .. src] or 0) end end
 		return t
 	elseif key == "levels" then
 		return (b.mlevels or 0) / 1000
@@ -93,6 +96,11 @@ function P.SeedRecords()
 	local d = Data()
 	local g, p = Me()
 	if not d or not p then return end
+	-- 1.1.0: gold bests counted Auction House and mail gold; work them out again from your days
+	if not d.goldRecords2 then
+		d.goldRecords2 = true
+		d.records.gold, d.records.goldph = nil, nil
+	end
 	for _, rec in ipairs(P.RECORDS) do
 		if rec.key ~= "streak" then
 			for day, b in pairs(p.days) do
