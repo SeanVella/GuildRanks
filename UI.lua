@@ -1309,6 +1309,9 @@ function ns.Diagnostics()
 			ns.FormatMoney(ns.MetricTotal(today, "loot", g))))
 		P("Players stored in this guild: " .. ns.CountPlayers(g))
 	end
+	for name in pairs(ns.nameClashes or {}) do
+		P("|cffffaa40" .. string.format("Two guild members share the same name: %s. Guild Ranks can't tell them apart.", name) .. "|r")
+	end
 	ns.SyncDiagnostics(P)
 	local missing = {}
 	for ev in pairs(ns.unsupportedEvents) do missing[#missing + 1] = ev end

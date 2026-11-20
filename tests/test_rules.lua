@@ -69,7 +69,7 @@ test("rules that arrive before the roster loads are applied once it does (fix)",
 	kurt:G().rules.minMinutes = 15
 	kurt:G().rules.version = 1795000000
 	kurt:G().rules.excludedFor = 1795000000
-	kurt:G().rules.excluded["Cheater-Firemaw"] = true
+	kurt:G().rules.excluded["Cheater"] = true
 	-- Sean logs in but his roster hasn't loaded yet when the rules arrive
 	sean:Login({ settle = 0 })
 	sean.ns.roster, sean.ns.rosterReady, sean.ns.rosterComplete = {}, false, false
@@ -82,7 +82,7 @@ test("rules that arrive before the roster loads are applied once it does (fix)",
 	-- now the roster loads
 	realRead()
 	eq(sean:G().rules.minMinutes, 15, "held rules applied after roster")
-	ok(sean:G().rules.excluded["Cheater-Firemaw"], "held exclusions applied")
+	ok(sean:G().rules.excluded["Cheater"], "held exclusions applied")
 end)
 
 test("excluded players disappear from boards and scores everywhere", function()

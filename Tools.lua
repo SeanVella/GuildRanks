@@ -124,7 +124,7 @@ function T.Demo(on)
 	local rnd = Rand(42)
 	local today = ns.Today()
 	for i, info in ipairs(DEMO_NAMES) do
-		local key = info[1] .. "-Demo"
+		local key = info[1]
 		local p = ns.GetPlayer(g, key, true)
 		p.class, p.level, p.version = info[2], info[3], ns.VERSION
 		local skill = 13 - i

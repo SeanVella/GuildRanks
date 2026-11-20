@@ -100,6 +100,7 @@ local DEFAULTS = {
 	view = { metric = "score", period = "week", perHour = true, bracket = 0, onlineOnly = false },
 	ui = { minimap = { hide = false } },
 	share = true,                -- share my stats with my guild
+	myNames = {},                -- character GUID -> full name as guildmates see it
 	showPlay = true,             -- let guildmates see my play time
 	guilds = {},
 	chars = {},
@@ -124,6 +125,10 @@ function ns.InitDB()
 	ns.db = GuildRanksDB
 	-- Data for the removed automatic Discord posting (1.1.0 betas): no longer needed
 	ns.db.exportJSON, ns.db.exportAt, ns.db.exportError = nil, nil, nil
+	if not ns.db.namesV2 then
+		ns.MigrateNames()
+		ns.db.namesV2 = true
+	end
 	for _, g in pairs(ns.db.guilds) do
 		if type(g.rules) ~= "table" then g.rules = {} end
 		CopyDefaults(ns.DefaultRules(), g.rules)
@@ -184,7 +189,11 @@ ns.On("ADDON_LOADED", function(name)
 end)
 
 ns.On("PLAYER_LOGIN", function()
-	ns.me = ns.FullName(UnitName("player"))
+	-- Other players see a longer name than UnitName gives us ("Healya Jamie" vs "Healya");
+	-- once learned (from the guild roster or our own messages) it's remembered per character
+	local guid = UnitGUID and UnitGUID("player")
+	ns.myGUID = (type(guid) == "string" and ns.Readable(guid)) and guid or nil
+	ns.me = (ns.myGUID and ns.db.myNames[ns.myGUID]) or ns.CanonName(UnitName("player"))
 	ns.db.chars[ns.me] = ns.db.chars[ns.me] or {}
 	ns.PruneOldDays()
 	for _, fn in ipairs(loginFns) do
@@ -211,23 +220,22 @@ function ns.MyRealm()
 	return (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName() or ""):gsub("[%s%-]", "")
 end
 
-function ns.FullName(name)
-	if not name or name == "" then return nil end
-	if not name:find("-", 1, true) then
-		local realm = ns.MyRealm()
-		if realm and realm ~= "" then name = name .. "-" .. realm end
-	end
+-- How a player is identified: their name without the realm. On WoW: Forever the realm
+-- part keeps changing ("Healya Jamie-CAMWOWEU4Realm6PvP", "...-CAMWOWEU5Realm4PvP"), so
+-- keeping it would store the same player several times.
+function ns.CanonName(name)
+	if type(name) ~= "string" or name == "" then return nil end
+	name = name:match("^([^%-]+)") or name
+	name = name:gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then return nil end
 	return name
 end
+ns.FullName = ns.CanonName -- (older name for the same thing)
 
--- Same character? Ignores letter case and how the realm is written ("Argent Dawn",
--- "ArgentDawn", "argent-dawn"); a missing realm means your own realm.
+-- Same character? Ignores letter case and any realm part.
 local function NameKey(full)
-	if type(full) ~= "string" then return nil end
-	local name, realm = full:match("^([^%-]+)%-?(.*)$")
-	if not name then return nil end
-	if realm == "" then realm = ns.MyRealm() or "" end
-	return name:lower() .. "-" .. realm:gsub("[%s%-'%.]", ""):lower()
+	local name = ns.CanonName(full)
+	return name and name:lower() or nil
 end
 
 function ns.SameCharacter(a, b)
@@ -263,6 +271,162 @@ end
 function ns.NewGuild(name, realm, clubId, solo)
 	return { name = name, realm = realm, clubId = clubId, solo = solo or nil,
 		rules = ns.DefaultRules(), players = {}, hidden = {} }
+end
+
+---------------------------------------------------------------------------
+-- Merging duplicates (same player stored under several names) and renaming yourself
+---------------------------------------------------------------------------
+-- Copies of one player's data: for each day keep the copy with the most play time
+function ns.MergePlayer(dst, src)
+	dst.days = dst.days or {}
+	for day, b in pairs(src.days or {}) do
+		local have = dst.days[day]
+		if not have or (b.playtime or 0) > (have.playtime or 0) then dst.days[day] = b end
+	end
+	if ((src.all or {}).playtime or 0) > ((dst.all or {}).playtime or 0) then dst.all = src.all end
+	dst.all = dst.all or {}
+	dst.level = math.max(dst.level or 0, src.level or 0)
+	if dst.level == 0 then dst.level = nil end
+	dst.class = dst.class or src.class
+	if (src.seen or 0) > (dst.seen or 0) then
+		dst.version, dst.hidePlay, dst.title = src.version or dst.version, src.hidePlay, src.title
+		dst.seen = src.seen
+	end
+	dst.version = dst.version or src.version
+	dst.relayedAt = math.max(dst.relayedAt or 0, src.relayedAt or 0)
+	if dst.relayedAt == 0 then dst.relayedAt = nil end
+	return dst
+end
+
+-- Re-key a set ({ [key] = true }) by canonical name
+local function CanonSet(set)
+	local out = {}
+	for key, v in pairs(set or {}) do
+		local c = ns.CanonName(key)
+		if c then out[c] = out[c] or v end
+	end
+	return out
+end
+
+local function CanonHall(hall)
+	for _, snap in pairs((hall and hall.weeks) or {}) do
+		local ranks = {}
+		for key, rank in pairs(snap.ranks or {}) do
+			local c = ns.CanonName(key)
+			if c and (not ranks[c] or rank < ranks[c]) then ranks[c] = rank end
+		end
+		snap.ranks = ranks
+		snap.mvp, snap.spoon = ns.CanonName(snap.mvp), ns.CanonName(snap.spoon)
+		if type(snap.challenge) == "table" then snap.challenge.key = ns.CanonName(snap.challenge.key) end
+		for _, b in pairs(snap.best or {}) do if type(b) == "table" then b.key = ns.CanonName(b.key) end end
+	end
+end
+
+local function CanonGuild(g)
+	local players = {}
+	for key, p in pairs(g.players or {}) do
+		local c = ns.CanonName(key)
+		if c then
+			if players[c] then ns.MergePlayer(players[c], p) else players[c] = p end
+		end
+	end
+	g.players = players
+	g.hidden = CanonSet(g.hidden)
+	if type(g.rules) == "table" then g.rules.excluded = CanonSet(g.rules.excluded) end
+	CanonHall(g.hall)
+end
+
+local function MergeGuild(dst, src)
+	for key, p in pairs(src.players or {}) do
+		if dst.players[key] then ns.MergePlayer(dst.players[key], p) else dst.players[key] = p end
+	end
+	for key in pairs(src.hidden or {}) do dst.hidden[key] = true end
+	if ((src.rules or {}).version or 0) > ((dst.rules or {}).version or 0) then dst.rules = src.rules end
+	if src.hall and src.hall.weeks then
+		dst.hall = dst.hall or { weeks = {} }
+		dst.hall.weeks = dst.hall.weeks or {}
+		for from, snap in pairs(src.hall.weeks) do dst.hall.weeks[from] = dst.hall.weeks[from] or snap end
+	end
+	for _, field in ipairs({ "popupWeek", "announcedWeek", "nudgeWeek" }) do
+		if src[field] and (not dst[field] or src[field] > dst[field]) then dst[field] = src[field] end
+	end
+	dst.clubId = dst.clubId or src.clubId
+end
+
+-- One-time clean-up (1.1.0): guild keys without the realm, players by name only
+function ns.MigrateNames()
+	local db = ns.db
+	local guilds, moved = {}, {}
+	local keys = {}
+	for key in pairs(db.guilds) do keys[#keys + 1] = key end
+	table.sort(keys)
+	for _, key in ipairs(keys) do
+		local g = db.guilds[key]
+		g.players, g.hidden = g.players or {}, g.hidden or {}
+		CanonGuild(g)
+		local newKey = key
+		if key == "~demo" or g.demo then
+			newKey = key
+		elseif g.solo then
+			newKey = "~solo"
+		elseif g.realm and key == (g.name or "") .. "-" .. g.realm then
+			newKey = g.name
+		end
+		local other = guilds[newKey]
+		if other and other.clubId and g.clubId and other.clubId ~= g.clubId then
+			newKey = key -- a different guild with the same name: keep it apart
+			other = guilds[newKey]
+		end
+		if other then MergeGuild(other, g) else guilds[newKey] = g end
+		moved[key] = newKey
+	end
+	db.guilds = guilds
+	if db.view and db.view.guild then db.view.guild = moved[db.view.guild] or db.view.guild end
+	local chars = {}
+	for key, c in pairs(db.chars or {}) do
+		local n = ns.CanonName(key)
+		if n then
+			if c.guild then c.guild = moved[c.guild] or c.guild end
+			if type(c.personal) == "table" then c.personal.rival = ns.CanonName(c.personal.rival) end
+			if chars[n] then
+				for k, v in pairs(c) do if chars[n][k] == nil then chars[n][k] = v end end
+			else
+				chars[n] = c
+			end
+		end
+	end
+	db.chars = chars
+end
+
+-- We've learned the name guildmates see for us ("Healya Jamie"): move our own data there
+function ns.RenameMe(newName)
+	newName = ns.CanonName(newName)
+	local old = ns.me
+	if not newName or not old or newName == old then return false end
+	for _, g in pairs(ns.db.guilds) do
+		local mine = g.players[old]
+		if mine then
+			g.players[old] = nil
+			if g.players[newName] then ns.MergePlayer(mine, g.players[newName]) end
+			g.players[newName] = mine
+		end
+		if g.rules and g.rules.excluded and g.rules.excluded[old] then
+			g.rules.excluded[old] = nil
+			g.rules.excluded[newName] = true
+		end
+		if g.hidden and g.hidden[old] then g.hidden[old] = nil; g.hidden[newName] = true end
+	end
+	local c = ns.db.chars[old]
+	if c then
+		ns.db.chars[old] = nil
+		local existing = ns.db.chars[newName]
+		if existing then for k, v in pairs(existing) do if c[k] == nil then c[k] = v end end end
+		ns.db.chars[newName] = c
+	end
+	if ns.myGUID then ns.db.myNames[ns.myGUID] = newName end
+	ns.me = newName
+	ns.MarkChanged()
+	return true
 end
 
 function ns.GetPlayer(g, key, create)

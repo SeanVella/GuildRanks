@@ -32,12 +32,12 @@ function ns.ResolveGuild()
 		if not gname or gname == "" or not ns.Readable(gname) then return false end -- not loaded yet
 		realm = NormalizeRealm(grealm)
 		name = gname
-		key = gname .. "-" .. realm
+		key = gname -- not the realm: on WoW: Forever it changes between sessions
 		clubId = GuildClubId()
 	else
 		realm = ns.MyRealm()
 		name = L["No guild"]
-		key = "~solo-" .. realm
+		key = "~solo"
 		solo = true
 	end
 
@@ -106,11 +106,14 @@ local function ReadRoster()
 	rosterPending = false
 	if not IsInGuild() then return end
 	local total = GetNumGuildMembers() or 0
-	local roster, count = {}, 0
+	local roster, count, myName, clashes = {}, 0, nil, {}
 	for i = 1, total do
-		local name, rankName, rankIndex, level, _, _, _, _, online, _, classFile = GetGuildRosterInfo(i)
+		local name, rankName, rankIndex, level, _, _, _, _, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
 		if name and ns.Readable(name) then
-			name = ns.FullName(name)
+			name = ns.CanonName(name)
+			-- your own entry tells us the name guildmates see for you ("Healya Jamie")
+			if ns.myGUID and guid and ns.Readable(guid) and guid == ns.myGUID then myName = name end
+			if roster[name] then clashes[name] = true end -- two members with the same name
 			roster[name] = {
 				rankName = ns.Readable(rankName) and rankName or nil,
 				rankIndex = ns.Readable(rankIndex) and rankIndex or nil,
@@ -123,6 +126,8 @@ local function ReadRoster()
 	end
 	if count > 0 then
 		ns.roster, ns.rosterCount, ns.rosterReady = roster, count, true
+		ns.nameClashes = clashes
+		if myName and myName ~= ns.me then ns.RenameMe(myName) end
 		-- Blizzard sometimes returns a partial or partly hidden roster; don't let
 		-- that hide members from the leaderboard
 		ns.rosterComplete = (count == total)

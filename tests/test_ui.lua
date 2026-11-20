@@ -18,7 +18,7 @@ local function TwoWeeks()
 	day(kurt.key, lastWeek, 3); day(sean.key, lastWeek, 2); day(maria.key, lastWeek, 1)
 	day(kurt.key, today, 3); day(maria.key, today, 2); day(sean.key, today, 1)
 	w:AddRosterMember("Froga", "Joe-Firemaw", 4, 30, "ROGUE")
-	day("Joe-Firemaw", today, 4)
+	day("Joe", today, 4)
 	ns.GetPlayer(g, kurt.key).class = "WARRIOR"
 	ns.GetPlayer(g, maria.key).class = "PRIEST"
 	ns.ReadRoster()
@@ -34,7 +34,7 @@ test("rank changes compare with the previous period: up, down, same and new", fu
 	local rows = ns.BuildBoard(g, "gold", "week", true, 0)
 	local ch = ns.RankChanges(g, rows, "gold", "week", true, 0)
 	eq(rows[1].name, "Joe", "Joe tops this week")
-	eq(ch["Joe-Firemaw"], "new", "Joe is new")
+	eq(ch["Joe"], "new", "Joe is new")
 	eq(ch[kurt.key], -1, "Kurt 1st -> 2nd")
 	eq(ch[maria.key], 0, "Maria stays 3rd")
 	eq(ch[sean.key], -2, "Sean 2nd -> 4th")
@@ -100,8 +100,8 @@ test("player card: click a name for score breakdown, stats and recent weeks", fu
 	ns.Card.Toggle(maria.key)
 	ok(not ns.Card.IsShown(), "same name again closes it")
 	-- someone without enough play time
-	ns.GetPlayer(g, "Bam-Firemaw", true).days[ns.Today()] = { playtime = 600, quests = 1 }
-	ns.Card.Show("Bam-Firemaw")
+	ns.GetPlayer(g, "Bam", true).days[ns.Today()] = { playtime = 600, quests = 1 }
+	ns.Card.Show("Bam")
 	contains(ns.Card.Texts(), "Not ranked yet", "unranked explanation")
 	ns.UI.Show("settings")
 	ok(not ns.Card.IsShown(), "closes when leaving the leaderboard")

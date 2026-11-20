@@ -4,7 +4,7 @@ test("a character without a guild gets solo mode with their own stats", function
 	local w = NewWorld()
 	local loner = w:NewClient({ name = "Loner" })
 	loner:Login()
-	eq(loner.ns.gkey, "~solo-Firemaw", "solo key")
+	eq(loner.ns.gkey, "~solo", "solo key")
 	ok(loner:G().solo, "solo flag")
 	loner:Fire("LOOT_OPENED"); loner:GainMoney(100); loner:Fire("LOOT_CLOSED")
 	eq(loner:Today().g_loot, 100, "tracked")
@@ -22,10 +22,10 @@ test("joining a guild switches to it; data stays per guild", function()
 	w.guilds.Froga.members[c.key] = { key = c.key, rankIndex = 4, rankName = "Initiate", level = 10, class = "WARRIOR", online = true, client = c }
 	c:Fire("PLAYER_GUILD_UPDATE", "player")
 	w:Advance(3)
-	eq(c.ns.gkey, "Froga-Firemaw", "switched")
+	eq(c.ns.gkey, "Froga", "switched")
 	c:Fire("LOOT_OPENED"); c:GainMoney(50); c:Fire("LOOT_CLOSED")
 	eq(c:Today().g_loot, 50, "new guild has only the new gold")
-	eq(c.ns.db.guilds["~solo-Firemaw"].players[c.key].days[c.ns.Today()].g_loot, 100, "solo data kept")
+	eq(c.ns.db.guilds["~solo"].players[c.key].days[c.ns.Today()].g_loot, 100, "solo data kept")
 end)
 
 test("alts in different guilds keep separate leaderboards in the same saved data", function()
@@ -38,10 +38,10 @@ test("alts in different guilds keep separate leaderboards in the same saved data
 	main:Logout()
 	local alt = w:NewClient({ name = "Seanalt", guild = "Alts Club", rank = 0, saved = main.saved })
 	alt:Login()
-	eq(alt.ns.gkey, "Alts Club-Firemaw", "alt's guild")
-	ok(alt.ns.db.guilds["Froga-Firemaw"], "main's guild still saved")
+	eq(alt.ns.gkey, "Alts Club", "alt's guild")
+	ok(alt.ns.db.guilds["Froga"], "main's guild still saved")
 	-- the window can show the other guild
-	alt.ns.db.view.guild = "Froga-Firemaw"
+	alt.ns.db.view.guild = "Froga"
 	local g = alt.ns.V()
 	eq(g.name, "Froga", "viewing main's guild")
 	ok(not alt.ns.CanEditRules(g), "can't edit another guild's rules")
@@ -58,12 +58,12 @@ test("a new guild with the same name and realm doesn't inherit the old guild's d
 	c:Logout()
 	w.guilds.Froga.clubId = "222" -- guild disbanded and recreated with the same name
 	c:Login()
-	eq(c.ns.gkey, "Froga-Firemaw", "same key")
+	eq(c.ns.gkey, "Froga", "same key")
 	eq(c:G().clubId, "222", "new guild")
 	eq(c:Today().g_loot, nil, "starts empty")
 	local archived = false
 	for key, g in pairs(c.ns.db.guilds) do
-		if key:find("Froga-Firemaw (", 1, true) then archived = g.players[c.key].days[c.ns.Today()].g_loot == 1000 end
+		if key:find("Froga (", 1, true) then archived = g.players[c.key].days[c.ns.Today()].g_loot == 1000 end
 	end
 	ok(archived, "old data archived separately")
 end)

@@ -122,9 +122,31 @@ local function CanSend()
 end
 C.CanSend = CanSend
 
+-- What we sent recently: our own messages come back with the name guildmates see for us
+local recentSent, recentOrder = {}, {}
+local function NoteSent(msg)
+	if not recentSent[msg] then
+		recentOrder[#recentOrder + 1] = msg
+		if #recentOrder > 30 then recentSent[table.remove(recentOrder, 1)] = nil end
+	end
+	recentSent[msg] = GetTime()
+end
+
 local function SendNow(msg)
 	local ok, res = pcall(C_ChatInfo.SendAddonMessage, ns.PREFIX, msg, "GUILD")
-	return ok and res ~= false and not (type(res) == "number" and res ~= 0)
+	local sent = ok and res ~= false and not (type(res) == "number" and res ~= 0)
+	if sent then NoteSent(msg) end
+	return sent
+end
+
+-- Our own message coming back under a longer name ("Healya Jamie" when UnitName says "Healya")?
+local function IsMyEcho(sender, text)
+	local kind = text:sub(1, 2)
+	if kind ~= "D;" and kind ~= "A;" then return false end -- only our own stats are unique to us
+	local at = recentSent[text]
+	if not at or GetTime() - at > 30 or not ns.me then return false end
+	local first = ns.me:match("^(%S+)")
+	return first ~= nil and sender:match("^(%S+)") == first
 end
 
 local function Pump()
@@ -399,7 +421,10 @@ ReceiveExcluded = function(g, sender, parts)
 	end
 	if version ~= r.version or r.excludedFor ~= version then return end
 	if rank > (r.managerRank or 1) then return end
-	for name in (parts[6] or ""):gmatch("[^,]+") do r.excluded[name] = true end
+	for name in (parts[6] or ""):gmatch("[^,]+") do
+		local n = ns.CanonName(name)
+		if n then r.excluded[n] = true end
+	end
 	ns.MarkChanged()
 end
 
@@ -459,8 +484,12 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 	if not (ns.Readable(text) and ns.Readable(sender)) or channel ~= "GUILD" then return end
 	local g = ns.G()
 	if not g or g.solo then return end
-	sender = ns.FullName(sender)
+	sender = ns.CanonName(sender)
 	if not sender or sender == ns.me then return end
+	if IsMyEcho(sender, text) then
+		ns.RenameMe(sender) -- now we know the name guildmates see for us
+		return
+	end
 
 	local parts = split(text, ";")
 	local kind, proto = parts[1], tonumber(parts[2])
@@ -491,8 +520,8 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 	elseif kind == "L" then
 		relayClaimSeenAt = GetTime()
 	elseif kind == "X" then
-		local key, day = parts[3], parts[7]
-		if not key or key == ns.me or not key:find("-", 1, true) or g.hidden[key] or not ValidDay(day) then return end
+		local key, day = ns.CanonName(parts[3]), parts[7]
+		if not key or key == ns.me or g.hidden[key] or not ValidDay(day) then return end
 		local b = DecodeBucket(parts[8])
 		local p = ns.GetPlayer(g, key, true)
 		if parts[9] == "p" then p.hidePlay = true end -- only direct messages can clear these

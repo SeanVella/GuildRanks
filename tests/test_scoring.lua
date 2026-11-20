@@ -9,7 +9,7 @@ local function GuildWith(players, rules)
 	local g = c:G()
 	g.players = {}
 	for key, b in pairs(players) do
-		local p = c.ns.GetPlayer(g, key .. "-Firemaw", true)
+		local p = c.ns.GetPlayer(g, key, true)
 		p.class, p.level = b.class or "WARRIOR", b.level or 30
 		w:AddRosterMember("Froga", key .. "-Firemaw", 4, p.level, p.class)
 		b.class, b.level = nil, nil
@@ -86,7 +86,7 @@ end)
 
 test("gold source rules and loot value source change the numbers", function()
 	local c, g = GuildWith({ A = { playtime = 600, g_loot = 100, g_mail = 1000, g_ah = 50000, lv_vendor = 5, lv_auction = 50 } })
-	local b = g.players["A-Firemaw"].days[c.ns.Today()]
+	local b = g.players["A"].days[c.ns.Today()]
 	eq(c.ns.MetricTotal(b, "gold", g), 100, "AH and mail gold left out by default (fix: overnight sales blew up Gold/h)")
 	g.rules.gold.mail, g.rules.gold.ah = true, true
 	eq(c.ns.MetricTotal(b, "gold", g), 51100, "counted once the guild switches them on")

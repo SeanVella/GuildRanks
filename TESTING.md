@@ -16,11 +16,11 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-92 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+97 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
-session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
+session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, WoW: Forever names (shifting realms, longer names, merging old duplicates), lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
 the in-game tools and every window page. Any Lua error inside the addon fails the
 test.
 
@@ -79,6 +79,7 @@ end)
 - [ ] Session bar, Hall of Fame and weekly challenge/goal banner look right (`/granks demo` helps)
 - [ ] After the weekly reset: weekly popup appears once; MVP posted once in guild chat (if enabled)
 - [ ] `/reload`: everything is still there
+- [ ] Each guildmate appears once on the leaderboard, under their full name; you appear as your full name (e.g. "Healya Jamie")
 - [ ] Drink a healing potion or use a healthstone: your Healing doesn't go up; a heal spell does
 - [ ] Die once (not Feign Death): Deaths goes up by exactly 1; Copy for Discord shows "Fewest deaths"
 - [ ] Zone into a dungeon and out again: Damage doesn't jump (compare `/granks log` before and after)

@@ -164,7 +164,7 @@ Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/Guild
 
 Pull requests are welcome. The issue forms ask for `/granks diag` and `/granks selftest`
 output. Please add or update a test in `tests/` with code changes: an automated simulated
-guild (92 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
+guild (97 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
 
 Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the instructions at the
 top, and add the file to `GuildRanks.toc`.

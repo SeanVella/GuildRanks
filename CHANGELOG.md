@@ -57,6 +57,12 @@ Removed
   Use **Copy for Discord** to share results.
 
 Fixes
+- WoW: Forever: guildmates were stored several times (the realm part of names changes between
+  sessions, and guildmates see a longer name than the game gives your own character), so players
+  appeared more than once and the weekly popup could say "You weren't ranked" while you were #1.
+  Players are now identified by name only, your full name is learned from the guild roster (or
+  your own messages), and existing duplicates are merged once on update, keeping the most
+  complete copy of each day. `/granks diag` warns if two guild members share the same name.
 - Gold/h no longer shoots up when you collect Auction House sales or mailed gold: both are now
   off by default (guild rules can switch them on). Guilds whose rules were never saved switch
   to the new default; past numbers are corrected too. The Me tab, session recap, goals and
@@ -85,7 +91,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (92 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (97 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

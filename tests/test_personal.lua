@@ -241,15 +241,16 @@ test("you can't pick yourself or one of your alts as rival, however the name is 
 	local g, ns = sean:G(), sean.ns
 	local P = ns.Personal
 	ok(ns.SameCharacter("Sean-Firemaw", "sean-fire maw"), "same character, written differently")
-	ok(not ns.SameCharacter("Sean-Firemaw", "Sean-Argent Dawn"), "different realm")
+	ok(ns.SameCharacter("Sean-CAMWOWEU4Realm6PvP", "Sean-CAMWOWEU5Realm4PvP"), "realm part ignored (WoW: Forever)")
+	ok(not ns.SameCharacter("Sean", "Seana"), "different name")
 	eq(P.SetRival(sean.key), false, "not yourself")
 	eq(P.SetRival("SEAN-firemaw"), false, "not yourself in other letters")
 	eq(P.SetRival("Sean-Fire Maw"), false, "not yourself with the realm spelled differently")
 	ns.GetPlayer(g, kurt.key, true).days[ns.Today()] = { playtime = 3600, g_loot = 500 }
-	ns.db.chars["Seanalt-Firemaw"] = {}
-	ns.GetPlayer(g, "Seanalt-Firemaw", true).days[ns.Today()] = { playtime = 3600, g_loot = 100 }
+	ns.db.chars["Seanalt"] = {}
+	ns.GetPlayer(g, "Seanalt", true).days[ns.Today()] = { playtime = 3600, g_loot = 100 }
 	ns.GetPlayer(g, "Sean-Fire Maw", true).days[ns.Today()] = { playtime = 3600, g_loot = 100 }
-	eq(P.SetRival("Seanalt-Firemaw"), false, "not one of your alts")
+	eq(P.SetRival("Seanalt"), false, "not one of your alts")
 	eq(P.Rival(), nil, "still no rival")
 	eq(P.SetRival(kurt.key), true, "a guildmate is fine")
 	eq(P.Rival(), kurt.key, "Kurt")

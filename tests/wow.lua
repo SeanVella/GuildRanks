@@ -145,12 +145,24 @@ function W:SendAddon(client, prefix, msg, chatType)
 	local guild = client.guild
 	self:After(0.05, function()
 		for _, other in ipairs(self.clients) do
-			if other ~= client and other.online and other.guild == guild and other.prefixes[prefix] and not other.inInstance then
-				other:Fire("CHAT_MSG_ADDON", prefix, msg, "GUILD", client.key)
+			-- the sender gets its own message back too, like the real game
+			if other.online and other.guild == guild and other.prefixes[prefix] and (other == client or not other.inInstance) then
+				other:Fire("CHAT_MSG_ADDON", prefix, msg, "GUILD", self:SenderName(client))
 			end
 		end
 	end)
 	return 0
+end
+
+-- The sender name receivers see: "Full Name-Realm". With world.shards (WoW: Forever) the realm
+-- part changes from message to message.
+function W:SenderName(client)
+	local realm = client.realm
+	if self.shards then
+		self.shardTurn = (self.shardTurn or 0) + 1
+		realm = self.shards[self.shardTurn % #self.shards + 1]
+	end
+	return client.fullName .. "-" .. realm
 end
 
 function W:MessagesOfKind(kind, from)
@@ -171,9 +183,11 @@ W.Client = Client
 function W:NewClient(o)
 	local c = setmetatable({}, Client)
 	c.world = self
-	c.name = o.name
+	c.name = o.name                                    -- what UnitName("player") returns
 	c.realm = o.realm or "Firemaw"
-	c.key = c.name .. "-" .. c.realm
+	c.fullName = o.surname and (o.name .. " " .. o.surname) or o.name -- what other players see
+	c.key = c.fullName                                 -- how the addon stores this player
+	c.guid = "Player-" .. c.name
 	c.guild = o.guild
 	c.rankIndex = o.rank or 3
 	c.level = o.level or 30
@@ -196,7 +210,7 @@ function W:NewClient(o)
 	self.clients[#self.clients + 1] = c
 	if c.guild then
 		local g = self.guilds[c.guild] or self:AddGuild(c.guild)
-		g.members[c.key] = { key = c.key, rankIndex = c.rankIndex, rankName = "Rank " .. c.rankIndex,
+		g.members[c.key] = { key = c.fullName .. "-" .. c.realm, guid = c.guid, rankIndex = c.rankIndex, rankName = "Rank " .. c.rankIndex,
 			level = c.level, class = c.class, online = false, client = c }
 	end
 	return c
@@ -349,7 +363,7 @@ function Client:BuildEnv()
 			return { totalAmount = total, combatSpells = spells }
 		end,
 	}
-	env.UnitGUID = function(unit) return unit == "player" and ("Player-" .. c.name) or nil end
+	env.UnitGUID = function(unit) return unit == "player" and c.guid or nil end
 	env.IsPlayerSpell = function(id) return c.knownSpells[id] ~= nil end
 	env.UnitIsDeadOrGhost = function(unit) return unit == "player" and c.dead or false end
 	env.C_ChatInfo = {
@@ -385,7 +399,8 @@ function Client:BuildEnv()
 		local online = m.client and m.client.online or false
 		if world.partialRoster and i % 2 == 0 then return nil end -- Blizzard returning incomplete data
 		local level = m.client and m.client.level or m.level
-		return m.key, m.rankName, m.rankIndex, level, m.class, "", "", "", online, 0, m.class
+		return m.key, m.rankName, m.rankIndex, level, m.class, "", "", "", online, 0, m.class,
+			0, false, false, false, 0, (not world.noRosterGUID) and (m.guid or ("Player-" .. m.key)) or nil
 	end
 	env.GetNormalizedRealmName = function() return c.realm end
 	env.GetRealmName = function() return c.realm end

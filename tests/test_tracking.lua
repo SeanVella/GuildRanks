@@ -178,7 +178,7 @@ test("stats before the guild is known are kept and added once it loads", functio
 	eq(sean.ns.gkey, nil, "guild not known yet")
 	sean:Fire("LOOT_OPENED"); sean:GainMoney(500); sean:Fire("LOOT_CLOSED")
 	w:Advance(10)
-	eq(sean.ns.gkey, "Froga-Firemaw", "guild resolved")
+	eq(sean.ns.gkey, "Froga", "guild resolved")
 	eq(sean:Today().g_loot, 500, "queued gold added")
 end)
 

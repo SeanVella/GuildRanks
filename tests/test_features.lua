@@ -259,7 +259,7 @@ test("big guild (300 members, 2 months): background work stays in small steps", 
 	local ns, g = me.ns, me:G()
 	math.randomseed(7)
 	for i = 1, 300 do
-		local key = "P" .. i .. "-Firemaw"
+		local key = "P" .. i
 		w:AddRosterMember("Big", key, 4, math.random(10, 60), "MAGE")
 		local p = ns.GetPlayer(g, key, true)
 		p.level = math.random(10, 60)
