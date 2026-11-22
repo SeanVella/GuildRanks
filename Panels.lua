@@ -118,6 +118,11 @@ local function CreateCard()
 	end)
 	card.rival:SetHeight(18)
 	card.rival:SetPoint("TOPRIGHT", -30, -36)
+	card.versus = H().MakeButton(card, L["Challenge"], 80, function()
+		if Card.key and ns.VersusUI then ns.VersusUI.ShowDialog(Card.key) end
+	end)
+	card.versus:SetHeight(18)
+	card.versus:SetPoint("RIGHT", card.rival, "LEFT", -4, 0)
 	local sf, child = H().MakeScroll(card, -56, INNER_W)
 	sf:ClearAllPoints()
 	sf:SetPoint("TOPLEFT", 22, -60)
@@ -150,6 +155,7 @@ function Card.Refresh()
 	local canRival = ns.Personal.CanBeRival(key) and not g.solo and not g.demo
 	card.rival:SetShown(canRival)
 	if canRival then card.rival:SetText(ns.Personal.Rival() == key and L["Your rival"] or L["Set as rival"]) end
+	card.versus:SetShown(ns.Versus.CanChallenge(key) and not g.demo)
 
 	local b = ns.Aggregate(p, view.period, g)
 	local secs = b.playtime or 0
@@ -472,3 +478,174 @@ function Welcome.Done()
 end
 
 function Welcome.IsShown() return wf ~= nil and wf:IsShown() end
+
+---------------------------------------------------------------------------
+-- 1v1 challenges: the challenge dialog, the Accept/Decline popup and the race bar
+---------------------------------------------------------------------------
+local VersusUI = {}
+ns.VersusUI = VersusUI
+local dialog, invite, bar
+
+local function Dialog(name, w, h)
+	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+	f:SetSize(w, h)
+	f:SetFrameStrata("DIALOG")
+	f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+		tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+	f:EnableMouse(true); f:SetMovable(true); f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
+	f:Hide()
+	return f
+end
+
+local function ChipRow(parent, x, y, options, getter, setter)
+	local chips = {}
+	for _, o in ipairs(options) do
+		local c = CreateFrame("Button", nil, parent)
+		c:SetSize(o[3] or 60, 20)
+		c:SetPoint("TOPLEFT", x, y)
+		c.bg = c:CreateTexture(nil, "BACKGROUND"); c.bg:SetAllPoints()
+		c.text = H().FS(c, "GameFontHighlightSmall", "CENTER"); c.text:SetPoint("CENTER"); c.text:SetText(o[2])
+		c.value = o[1]
+		c:SetScript("OnClick", function() setter(o[1]); VersusUI.RefreshDialog() end)
+		chips[#chips + 1] = c
+		x = x + (o[3] or 60) + 4
+	end
+	return function()
+		for _, c in ipairs(chips) do
+			if getter() == c.value then c.bg:SetColorTexture(0.45, 0.36, 0.08, 0.9); c.text:SetTextColor(1, 0.82, 0)
+			else c.bg:SetColorTexture(0.16, 0.16, 0.18, 0.9); c.text:SetTextColor(0.85, 0.82, 0.75) end
+		end
+	end
+end
+
+function VersusUI.ShowDialog(key)
+	if not dialog then
+		dialog = Dialog("GuildRanksChallenge", 300, 196)
+		dialog:SetPoint("CENTER", 0, 120)
+		tinsert(UISpecialFrames, "GuildRanksChallenge")
+		local x = CreateFrame("Button", nil, dialog, "UIPanelCloseButton"); x:SetPoint("TOPRIGHT", -6, -6)
+		local title = H().FS(dialog, "GameFontNormalLarge"); title:SetPoint("TOPLEFT", 22, -18); title:SetText(L["Challenge a guildmate"])
+		local who = H().FS(dialog, "GameFontHighlightSmall"); who:SetPoint("TOPLEFT", 22, -54); who:SetText(L["Who"])
+		dialog.who = ns.UI.MakeDropdown(dialog, 170, function()
+			local o = {}
+			for _, k in ipairs(ns.Versus.Opponents()) do o[#o + 1] = { value = k, text = ns.ShortName(k) } end
+			if #o == 0 then o[1] = { value = "", text = L["nobody online with Guild Ranks"] } end
+			return o
+		end, function() return dialog.target end, function(val) dialog.target = val ~= "" and val or nil; VersusUI.RefreshDialog() end)
+		dialog.who:SetPoint("TOPLEFT", 90, -48)
+		local what = H().FS(dialog, "GameFontHighlightSmall"); what:SetPoint("TOPLEFT", 22, -86); what:SetText(L["What"])
+		dialog.refreshMetric = ChipRow(dialog, 90, -82, { { "gold", L["Gold"], 50 }, { "xp", L["XP"], 40 }, { "kills", L["Kills"], 50 } },
+			function() return dialog.metric end, function(v) dialog.metric = v end)
+		local long = H().FS(dialog, "GameFontHighlightSmall"); long:SetPoint("TOPLEFT", 22, -116); long:SetText(L["How long"])
+		dialog.refreshSecs = ChipRow(dialog, 90, -112, { { 1800, L["30 min"], 60 }, { 3600, L["1 hour"], 60 } },
+			function() return dialog.secs end, function(v) dialog.secs = v end)
+		dialog.send = H().MakeButton(dialog, L["Send challenge"], 140, function()
+			if dialog.target and ns.Versus.Challenge(dialog.target, dialog.metric, dialog.secs) then dialog:Hide() end
+		end)
+		dialog.send:SetPoint("BOTTOMLEFT", 20, 18)
+		local cancel = H().MakeButton(dialog, L["Cancel"], 80, function() dialog:Hide() end)
+		cancel:SetPoint("BOTTOMRIGHT", -20, 18)
+		dialog.metric, dialog.secs = "gold", 3600
+	end
+	dialog.target = (key and ns.Versus.CanChallenge(key)) and key or ns.Versus.Opponents()[1]
+	dialog:Show()
+	VersusUI.RefreshDialog()
+	return true
+end
+
+function VersusUI.RefreshDialog()
+	if not dialog or not dialog:IsShown() then return end
+	if dialog.who.Refresh then dialog.who:Refresh() end
+	dialog.refreshMetric(); dialog.refreshSecs()
+	if dialog.target then dialog.send:Enable() else dialog.send:Disable() end
+end
+function VersusUI.DialogState() return dialog and dialog:IsShown() and dialog.target, dialog and dialog.metric, dialog and dialog.secs end -- tests
+function VersusUI.SendFromDialog() if dialog then dialog.send:GetScript("OnClick")(dialog.send) end end -- tests
+
+-- "Joe Mario challenges you to a 1-hour gold race!"
+function ns.UI.ShowVersusInvite(inc)
+	if not invite then
+		invite = Dialog("GuildRanksChallengeInvite", 340, 120)
+		invite:SetPoint("TOP", 0, -160)
+		invite.text = H().FS(invite, "GameFontHighlight", "CENTER")
+		invite.text:SetPoint("TOP", 0, -24); invite.text:SetWidth(300); invite.text:SetWordWrap(true)
+		local yes = H().MakeButton(invite, L["Accept"], 110, function() ns.Versus.Answer(true) end)
+		yes:SetPoint("BOTTOMLEFT", 24, 18)
+		local no = H().MakeButton(invite, L["Decline"], 110, function() ns.Versus.Answer(false) end)
+		no:SetPoint("BOTTOMRIGHT", -24, 18)
+	end
+	local length = inc.secs >= 3600 and L["1-hour"] or string.format(L["%d-minute"], math.floor(inc.secs / 60))
+	invite.text:SetText(string.format(L["%s challenges you to a %s %s race!"], "|cffffd100" .. ns.ShortName(inc.opponent) .. "|r",
+		length, (ns.Versus.METRICS[inc.metric] or inc.metric):lower()))
+	invite:Show()
+	if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960) end
+end
+function ns.UI.HideVersusInvite() if invite then invite:Hide() end end
+function VersusUI.InviteText() return invite and invite:IsShown() and invite.text:GetText() or nil end -- tests
+
+-- The race bar: both players' progress, time left, then the result
+local function CreateBar()
+	bar = Dialog("GuildRanksRace", 300, 128)
+	bar:SetPoint("TOP", 0, -200)
+	bar.title = H().FS(bar, "GameFontNormal"); bar.title:SetPoint("TOPLEFT", 20, -18); bar.title:SetWidth(260)
+	local function Line(y)
+		local l = {}
+		l.name = H().FS(bar, "GameFontHighlightSmall"); l.name:SetPoint("TOPLEFT", 20, y); l.name:SetWidth(150)
+		l.value = H().FS(bar, "GameFontHighlightSmall", "RIGHT"); l.value:SetPoint("TOPRIGHT", -20, y); l.value:SetWidth(110)
+		l.bg = bar:CreateTexture(nil, "ARTWORK"); l.bg:SetPoint("TOPLEFT", 20, y - 14); l.bg:SetSize(260, 6); l.bg:SetColorTexture(0.16, 0.17, 0.2, 1)
+		l.fill = bar:CreateTexture(nil, "OVERLAY"); l.fill:SetPoint("LEFT", l.bg, "LEFT"); l.fill:SetSize(1, 6)
+		return l
+	end
+	bar.me, bar.them = Line(-40), Line(-66)
+	bar.me.fill:SetColorTexture(0.79, 0.64, 0.15, 1)
+	bar.them.fill:SetColorTexture(0.55, 0.55, 0.58, 1)
+	bar.left = H().MakeButton(bar, L["Give up"], 110, function()
+		local r = ns.Versus.Current()
+		if r and r.done then ns.Versus.PostResult(); VersusUI.Refresh() else ns.Versus.GiveUp() end
+	end)
+	bar.left:SetPoint("BOTTOMLEFT", 20, 14); bar.left:SetHeight(20)
+	bar.right = H().MakeButton(bar, L["Hide"], 80, function()
+		local r = ns.Versus.Current()
+		if r and r.done then ns.Versus.Close() end
+		bar:Hide()
+	end)
+	bar.right:SetPoint("BOTTOMRIGHT", -20, 14); bar.right:SetHeight(20)
+end
+
+function VersusUI.Refresh()
+	local r = ns.Versus.Current()
+	if not bar or not bar:IsShown() or not r then return end
+	local fmt = function(v) return ns.Versus.Format(r.metric, v) end
+	local label = (ns.Versus.METRICS[r.metric] or r.metric)
+	local opp = ns.ShortName(r.opponent)
+	if r.done then
+		local result = r.draw and L["It's a draw!"] or (r.won and ("|cff40ff40" .. L["You won!"] .. "|r") or (string.format(L["%s won"], opp)))
+		bar.title:SetText(string.format(L["%s race vs %s"], label, opp) .. "  ·  " .. result)
+		bar.left:SetText(L["Post to guild chat"])
+		bar.left:SetShown(r.won and not r.posted)
+		bar.right:SetText(L["Close"])
+	else
+		local left = math.max(0, r.secs - (GetTime() - r.startedAt))
+		bar.title:SetText(string.format(L["%s race vs %s"], label, opp) .. "  ·  " .. string.format(L["%s left"], ns.FormatTime(left)))
+		bar.left:SetText(L["Give up"]); bar.left:Show()
+		bar.right:SetText(L["Hide"])
+	end
+	local top = math.max(r.mine, r.theirs, 1)
+	bar.me.name:SetText(L["You"]); bar.me.value:SetText("+" .. fmt(r.mine))
+	bar.them.name:SetText(H().ClassColored(opp, (ns.G() and ns.G().players[r.opponent] or {}).class)); bar.them.value:SetText("+" .. fmt(r.theirs))
+	bar.me.fill:SetWidth(math.max(1, 260 * r.mine / top))
+	bar.them.fill:SetWidth(math.max(1, 260 * r.theirs / top))
+end
+
+function ns.UI.ShowVersus()
+	if not bar then CreateBar() end
+	bar:Show()
+	VersusUI.Refresh()
+end
+ns.UI.RefreshVersus = VersusUI.Refresh
+function VersusUI.BarText() -- tests
+	if not (bar and bar:IsShown()) then return nil end
+	return bar.title:GetText() .. " | " .. bar.me.value:GetText() .. " | " .. bar.them.value:GetText()
+end
+function VersusUI.ClickLeft() if bar then bar.left:GetScript("OnClick")(bar.left) end end -- tests

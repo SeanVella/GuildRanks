@@ -23,6 +23,10 @@ See who's carrying the guild, chase your own records, and crown an MVP every wee
 - 📈 **Your own stats page**: your week against last week, goals, personal bests and a rival.
 - 🔔 **Something to chase**: a card and a sound when you take #1, a heads-up when someone
   passes you, and weekly titles like *Gold Baron* or *Iron Man*.
+- 🏁 **Race to 60, 1v1 challenges**: see who hit max level first, and challenge a guildmate to a
+  1-hour gold, XP or kills race.
+- 🛠️ **Guild tools**: who has which profession, when everyone was last online, and who's gone
+  inactive (for officers).
 - 💬 **Ready for Discord**: one click copies the week's results to paste in your server.
 - 🔒 **Private and automatic**: no account, no website, nothing to set up.
 
@@ -84,6 +88,7 @@ uses the same rules, so everyone sees the same rankings. You can set:
 - the weekly reset day and hour, and the minimum play time to be ranked
 - which gold sources count (Auction House and mail are off by default) and how loot is valued
 - a **weekly challenge** (one featured ranking, with an optional prize) and a **guild goal**
+- after how many days a member counts as inactive (officers see who in Members > Activity)
 - whether to show play time, the Wooden spoon, and an MVP announcement in guild chat
 
 By default the Guild Master and the first officer rank can change the rules.
@@ -96,6 +101,8 @@ By default the Guild Master and the first officer rank can change the rules.
 | `/granks me` | Your stats, goals, personal bests, rival and titles |
 | `/granks recap` | Your session recap |
 | `/granks invite` | Post or copy an install message for guildmates |
+| `/granks challenge` | Challenge an online guildmate to a 1v1 race |
+| `/granks race` | Who reached max level first |
 | `/granks discord` | Copy the current view for Discord |
 | `/granks demo` | Preview the window with sample data (`demo off` removes it) |
 
@@ -164,7 +171,7 @@ Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/Guild
 
 Pull requests are welcome. The issue forms ask for `/granks diag` and `/granks selftest`
 output. Please add or update a test in `tests/` with code changes: an automated simulated
-guild (97 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
+guild (105 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
 
 Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the instructions at the
 top, and add the file to `GuildRanks.toc`.

@@ -193,8 +193,8 @@ function UI.Current() return current end
 -- Leaderboard
 ---------------------------------------------------------------------------
 local RANK_COLORS = { "|cffffd700", "|cffc7c7cf", "|cffcd7f32" }
-local CHIPS = { "score", "gold", "xp", "damage", "quests" }
-local CHIP_W = { score = 54, gold = 50, xp = 40, damage = 64, quests = 60 }
+local CHIPS = { "score", "gold", "xp", "damage", "quests", "race" }
+local CHIP_W = { score = 54, gold = 50, xp = 40, damage = 64, quests = 60, race = 74 }
 
 local function ShowRowTooltip(self)
 	local d = self.data
@@ -306,8 +306,74 @@ local function RefreshChips(g)
 	if controls.more.Refresh then controls.more:Refresh() end
 	if not inChips and controls.more.SetText and not controls.more.SetupMenu then
 		local m = ns.METRIC_BY_KEY[v.metric]
-		controls.more:SetText(m and m.short or L["More rankings"])
+		controls.more:SetText(m and m.short or L["More"])
 	end
+end
+
+-- Race to max level: who got there (first one first), then everyone still levelling
+local function RefreshRace(g)
+	RefreshChips(g)
+	local reached, levelling, maxL = ns.Race.Board(g)
+	controls.desc:SetText(L["all time"])
+	valueHeader:SetText(L["Reached"])
+	changeHeader:Hide()
+	controls.perHour:Disable()
+	controls.playedHeader:SetShown(g.rules.showPlaytime ~= false)
+	resetText:SetText(ns.ResetDescription(g))
+	local items = {}
+	for i, e in ipairs(reached) do items[#items + 1] = { e = e, rank = i } end
+	if #levelling > 0 then
+		items[#items + 1] = { label = L["Still levelling"] }
+		for _, e in ipairs(levelling) do items[#items + 1] = { e = e } end
+	end
+	for i, item in ipairs(items) do
+		local r = GetRow(i)
+		local e = item.e
+		r.data = e and { key = e.key, name = e.name, class = e.class, level = e.level } or false
+		r.change:SetText("")
+		r.bg:SetColorTexture(1, 1, 1, (i % 2 == 0) and 0.04 or 0)
+		if not e then
+			r.rank:SetText("")
+			r.name:SetText("|cffffd100" .. item.label .. "|r")
+			r.level:SetText(""); r.value:SetText(""); r.played:SetText("")
+			r.barBg:Hide(); r.bar:Hide()
+		else
+			local online = UI.IsOnline(g, e.key)
+			local icon = (online == true and ONLINE_ICON) or (online == false and OFFLINE_ICON) or ""
+			r.name:SetText(icon .. ClassColored(e.name, e.class))
+			r.level:SetText(e.level > 0 and e.level or "?")
+			if item.rank then
+				r.rank:SetText((RANK_COLORS[item.rank] or "|cffffffff") .. item.rank .. ".|r")
+				r.value:SetText(e.at and date("%d %b", e.at) or "|cff808080" .. L["before"] .. "|r")
+				local showPlay = g.rules.showPlaytime ~= false and ns.PlaytimeShownFor(g, e.key)
+				r.played:SetText((showPlay and e.played) and ns.FormatDuration(e.played) or "|cff808080-|r")
+				r.barBg:Hide(); r.bar:Hide()
+				if item.rank == 1 and e.at then r.change:SetText("|cffffd100" .. L["first!"] .. "|r") end
+			else
+				r.rank:SetText("")
+				r.value:SetText(e.etaSecs and ("~" .. ns.FormatDuration(e.etaSecs)) or "|cff808080-|r")
+				r.played:SetText("")
+				r.barBg:Show(); r.bar:Show()
+				r.bar:SetWidth(math.max(1, BAR_W * math.min(1, e.progress or 0)))
+			end
+			if e.key == ns.me then r.bg:SetColorTexture(0.2, 0.8, 0.4, 0.18) end
+		end
+		r:Show()
+	end
+	for i = #items + 1, #rows do
+		rows[i].data = nil
+		rows[i]:Hide()
+	end
+	content:SetHeight(math.max(1, #items * ROW_H))
+	if #items == 0 then
+		emptyText:SetText(string.format(L["Nobody's on the board yet. Members show up once they have Guild Ranks."]))
+		emptyText:Show()
+	else
+		emptyText:Hide()
+	end
+	controls.emptyInvite:Hide()
+	footerText:SetText(string.format(L["%d at level %d  ·  %d still levelling  ·  the time is your estimated play time to %d at this week's pace"],
+		#reached, maxL, #levelling, maxL))
 end
 
 local function RefreshList(g)
@@ -317,6 +383,7 @@ local function RefreshList(g)
 	controls.body:ClearAllPoints()
 	controls.body:SetPoint("TOPLEFT", 0, -(4 + stripH))
 	controls.body:SetPoint("BOTTOMRIGHT", 0, 0)
+	if v.metric == "race" then return RefreshRace(g) end
 
 	local data, unranked, metric, useRate = ns.BuildBoard(g, v.metric, v.period, v.perHour, v.bracket)
 	local changes = ns.RankChanges(g, data, metric.key, v.period, v.perHour, v.bracket)
@@ -457,6 +524,7 @@ end
 function UI.NudgeText() return w.nudge and w.nudge:IsShown() and w.nudge.text:GetText() or nil end -- for the automated tests
 function UI.NudgeClick(which) local b = w.nudge and w.nudge[which]; if b then b:GetScript("OnClick")(b) end end -- for the automated tests
 
+local RefreshActivity, RefreshProfessions -- (Members > Activity and Professions, defined below)
 local function RefreshMembers(g)
 	local list = {}
 	local useRoster = g == ns.G() and not g.solo and ns.rosterReady
@@ -506,13 +574,23 @@ local function RefreshMembers(g)
 		w.nudge.text:SetText("|cffffd100" .. string.format(L["%d of %d members use Guild Ranks."], withAddon, #list) .. "|r  |cffa0a0a0"
 			.. string.format(L["The other %d aren't on the leaderboards yet."], #list - withAddon) .. "|r")
 	end
-	w.membersInner:ClearAllPoints()
-	w.membersInner:SetPoint("TOPLEFT", 0, showNudge and -36 or 0)
-	w.membersInner:SetPoint("BOTTOMRIGHT")
+	local sub = ns.db.ui.membersView or "roster"
+	if sub == "activity" and not useRoster then sub = "roster" end
+	for key, chip in pairs(w.memberChips) do chip:SetSelected(key == sub) end
+	local top = showNudge and -60 or -24
+	for _, f in ipairs({ w.membersInner, w.actInner, w.profInner }) do
+		f:ClearAllPoints()
+		f:SetPoint("TOPLEFT", 0, top)
+		f:SetPoint("BOTTOMRIGHT")
+	end
+	w.membersInner:SetShown(sub == "roster")
+	w.actInner:SetShown(sub == "activity")
+	w.profInner:SetShown(sub == "professions")
 	subtitle:SetText(useRoster
 		and string.format(L["%d members  ·  %d use Guild Ranks  ·  invite the rest to join in!"], #list, withAddon)
 		or L["Roster is only available for your current guild"])
 	footerText:SetText(canEdit and L["Officers: use Exclude to remove someone (e.g. a cheater) from the rankings."] or "")
+	if sub == "activity" then RefreshActivity(g, canEdit) elseif sub == "professions" then RefreshProfessions(g) end
 end
 
 ---------------------------------------------------------------------------
@@ -524,7 +602,7 @@ local function LoadPending(g)
 		minMinutes = r.minMinutes, managerRank = r.managerRank,
 		showSpoon = r.showSpoon, itemValue = r.itemValue, announceMVP = r.announceMVP,
 		challengeMetric = r.challengeMetric or "", challengePrize = r.challengePrize or "",
-		goalMetric = r.goalMetric or "", goalTarget = r.goalTarget or 0, gold = {} }
+		goalMetric = r.goalMetric or "", goalTarget = r.goalTarget or 0, inactiveDays = r.inactiveDays or 14, gold = {} }
 	for _, src in ipairs(ns.GOLD_SOURCES) do pend.gold[src] = r.gold[src] end
 	w.pending, w.pendingFor = pend, g
 end
@@ -549,6 +627,7 @@ local function PendingChanged(g)
 		and (pend.goalMetric or "") == (r.goalMetric or "")
 		and ((pend.goalMetric or "") == "" or math.floor(pend.goalTarget or 0) == (r.goalTarget or 0))
 		and pend.managerRank == r.managerRank
+		and (pend.inactiveDays or 14) == (r.inactiveDays or 14)
 	for _, src in ipairs(ns.GOLD_SOURCES) do
 		if (pend.gold[src] and true or false) ~= (r.gold[src] and true or false) then same = false end
 	end
@@ -585,6 +664,7 @@ function UI.RulesSummary(g)
 	add(L["Weekly challenge"], cm and (cm.short .. "/h" .. (r.challengePrize and ("  ·  " .. L["prize"] .. " " .. r.challengePrize) or "")) or L["none"])
 	local gm = ns.METRIC_BY_KEY[r.goalMetric or ""]
 	add(L["Guild goal"], (gm and (r.goalTarget or 0) > 0) and (ns.FormatValue(gm, r.goalTarget, false) .. " " .. gm.short) or L["none"])
+	add(L["Inactive after"], string.format(L["%d days (officers see who in Members > Activity)"], r.inactiveDays or 14))
 	local who
 	for _, o in ipairs(ns.RankChoices()) do if o.value == (r.managerRank or 1) then who = o.text end end
 	lines[#lines + 1] = " "
@@ -617,6 +697,7 @@ local function RefreshSettings(g)
 	w.popup:SetChecked(ns.db.weeklyPopup)
 	w.announceLevel:SetChecked(ns.db.announceLevel)
 	w.leadCards:SetChecked(ns.db.leadCards ~= false)
+	w.announceMax:SetChecked(ns.db.announceMax ~= false)
 	local price = ns.PriceSourceName()
 	w.status:SetText(string.format(
 		L["Addon version: %s%s\nDamage meter: %s\nAuction prices from: %s\nMessages waiting to send: %d%s"],
@@ -689,14 +770,16 @@ local function BuildSettings()
 		function(on) ns.db.announceLevel = on end)
 	check("leadCards", L["Lead cards (you take or lose #1)"], L["An achievement-style card, with a sound, when you become #1 in a ranking this week, and a smaller one when someone takes it from you."], -148,
 		function(on) ns.db.leadCards = on end)
-	Label(you, L["About"], 22, -186, "GameFontNormal")
+	check("announceMax", string.format(L["Announce in guild chat when I reach level %d"], ns.MaxLevel()), L["Once, with your place in the guild's race and your play time."], -172,
+		function(on) ns.db.announceMax = on end)
+	Label(you, L["About"], 22, -210, "GameFontNormal")
 	w.status = FS(you, "GameFontHighlightSmall")
 	w.status:SetWordWrap(true)
 	w.status:SetWidth(540)
 	w.status:SetSpacing(2)
-	w.status:SetPoint("TOPLEFT", 22, -204)
+	w.status:SetPoint("TOPLEFT", 22, -228)
 	local welcome = MakeButton(you, L["Show the welcome again"], 180, function() if ns.Welcome then ns.Welcome.Show(true) end end)
-	welcome:SetPoint("TOPLEFT", 20, -274)
+	welcome:SetPoint("TOPLEFT", 20, -298)
 
 	-- Guild rules
 	local rules = CreateFrame("Frame", nil, v)
@@ -798,6 +881,14 @@ local function BuildSettings()
 	w.goal = MakeDropdown(ed, 200, ns.GoalChoices, function() return w.pending and w.pending.goalMetric end,
 		function(val) w.pending.goalMetric = val; UpdateUnsaved(); UI.Refresh() end)
 	w.goal:SetPoint("TOPLEFT", 20, -300)
+	Label(ed, L["Inactive after"], 362, -286)
+	w.inactive = MakeDropdown(ed, 110, function()
+		local o = {}
+		for _, d in ipairs({ 7, 14, 21, 30, 60 }) do o[#o + 1] = { value = d, text = string.format(L["%d days"], d) } end
+		return o
+	end, function() return w.pending and w.pending.inactiveDays end, set("inactiveDays"))
+	w.inactive:SetPoint("TOPLEFT", 360, -300)
+	Tip(w.inactive, L["Inactive after"], L["Officers see members who haven't logged in for this long in Members > Activity."])
 	Tip(w.goal, L["Guild goal"], L["A target the whole guild works towards together this week."])
 	Label(ed, L["Target"], 236, -286)
 	w.goalBox = CreateFrame("EditBox", nil, ed, "InputBoxTemplate")
@@ -841,6 +932,7 @@ local function BuildSettings()
 		r.challengePrize = (pend.challengePrize ~= "" and pend.challengePrize) or nil
 		r.goalMetric = (pend.goalMetric ~= "" and pend.goalMetric) or nil
 		r.goalTarget = r.goalMetric and math.max(0, math.floor(pend.goalTarget or 0)) or 0
+		r.inactiveDays = pend.inactiveDays or 14
 		if g.solo or ns.IsGuildMaster() then r.managerRank = pend.managerRank end
 		for _, src in ipairs(ns.GOLD_SOURCES) do r.gold[src] = pend.gold[src] and true or false end
 		ns.Comm.PublishRules()
@@ -964,6 +1056,7 @@ function UI.Show(view)
 		w.pendingFor = nil
 		UI.Refresh()
 		w.reset:Refresh(); w.resetHour:Refresh(); w.itemValue:Refresh(); w.manager:Refresh(); w.challenge:Refresh(); w.goal:Refresh()
+		if w.inactive.Refresh then w.inactive:Refresh() end
 	else
 		UI.Refresh()
 	end
@@ -1035,7 +1128,7 @@ local function BuildList()
 		chip.bg:SetAllPoints()
 		chip.text = FS(chip, "GameFontHighlightSmall", "CENTER")
 		chip.text:SetPoint("CENTER")
-		chip.text:SetText(key == "score" and L["Score"] or m.short)
+		chip.text:SetText(key == "score" and L["Score"] or (key == "race" and string.format(L["Race to %d"], ns.MaxLevel())) or m.short)
 		local hl = chip:CreateTexture(nil, "HIGHLIGHT")
 		hl:SetAllPoints()
 		hl:SetColorTexture(1, 1, 1, 0.08)
@@ -1049,11 +1142,15 @@ local function BuildList()
 			end
 		end
 		chip:SetScript("OnClick", function() view.metric = key; UI.Refresh() end)
-		Tip(chip, m.label)
+		if key == "race" then
+			Tip(chip, string.format(L["Race to %d"], ns.MaxLevel()), L["Who reached max level first and how much play time it took, and how far everyone else has to go."])
+		else
+			Tip(chip, m.label)
+		end
 		controls.chips[key] = chip
 		x = x + CHIP_W[key] + 4
 	end
-	controls.more = MakeDropdown(body, 140, function()
+	controls.more = MakeDropdown(body, 92, function()
 		local o = {}
 		for _, opt in ipairs(ns.RankingChoices(ns.V())) do
 			local chip = false
@@ -1061,7 +1158,7 @@ local function BuildList()
 			if not chip then o[#o + 1] = opt end
 		end
 		return o
-	end, function() return view.metric end, function(val) view.metric = val; UI.Refresh() end, L["More rankings"])
+	end, function() return view.metric end, function(val) view.metric = val; UI.Refresh() end, L["More"])
 	controls.more:SetPoint("TOPLEFT", x + 2, 0)
 	controls.perHour = MakeCheck(body, L["Per hour"], function(checked) view.perHour = checked; UI.Refresh() end,
 		L["Per hour of play (fair for everyone) or totals."])
@@ -1115,9 +1212,29 @@ local function BuildMembers()
 	v:SetPoint("BOTTOMRIGHT", 0, 56)
 	v:Hide()
 	views.members = v
+	local membersView = v
+	-- Roster / Activity / Professions
+	w.memberChips = {}
+	local cx = 18
+	for _, s in ipairs({ { "roster", L["Roster"], 70 }, { "activity", L["Activity"], 70 }, { "professions", L["Professions"], 90 } }) do
+		local key = s[1]
+		local chip = CreateFrame("Button", nil, v)
+		chip:SetSize(s[3], 20)
+		chip:SetPoint("TOPLEFT", cx, -2)
+		chip.bg = chip:CreateTexture(nil, "BACKGROUND"); chip.bg:SetAllPoints()
+		chip.text = FS(chip, "GameFontHighlightSmall", "CENTER"); chip.text:SetPoint("CENTER"); chip.text:SetText(s[2])
+		local hl = chip:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.08)
+		chip.SetSelected = function(self, on)
+			if on then self.bg:SetColorTexture(0.45, 0.36, 0.08, 0.9); self.text:SetTextColor(1, 0.82, 0)
+			else self.bg:SetColorTexture(0.16, 0.16, 0.18, 0.9); self.text:SetTextColor(0.85, 0.82, 0.75) end
+		end
+		chip:SetScript("OnClick", function() ns.db.ui.membersView = key; UI.Refresh() end)
+		w.memberChips[key] = chip
+		cx = cx + s[3] + 4
+	end
 	-- Officer nudge: "12 of 40 members use Guild Ranks", shown until dismissed for the week
 	local nudge = CreateFrame("Frame", nil, v)
-	nudge:SetPoint("TOPLEFT", 18, -2)
+	nudge:SetPoint("TOPLEFT", 18, -26)
 	nudge:SetSize(548, 30)
 	local nbg = nudge:CreateTexture(nil, "BACKGROUND")
 	nbg:SetAllPoints()
@@ -1159,6 +1276,107 @@ local function BuildMembers()
 	H(L["Addon"], 342, 100)
 	local _, child = MakeScroll(v, -24)
 	w.membersContent = child
+
+	-- Activity: last seen (from the roster) and play time this week
+	local act = CreateFrame("Frame", nil, membersView)
+	act:SetPoint("TOPLEFT"); act:SetPoint("BOTTOMRIGHT")
+	w.actInner = act
+	local ahdr = CreateFrame("Frame", nil, act)
+	ahdr:SetPoint("TOPLEFT", 18, -4)
+	ahdr:SetSize(530, 18)
+	for _, h in ipairs({ { L["Name"], 4, 170 }, { L["Lvl"], 176, 36, "CENTER" }, { L["Last seen"], 218, 110 }, { L["This week"], 332, 80, "RIGHT" }, { L["Addon"], 430, 90 } }) do
+		local f = FS(ahdr, "GameFontNormalSmall", h[4]); f:SetPoint("LEFT", h[2], 0); f:SetWidth(h[3]); f:SetText(h[1])
+	end
+	local _, achild = MakeScroll(act, -24)
+	w.actContent = achild
+
+	-- Professions: who has which, highest skill first (click a name to whisper)
+	local prof = CreateFrame("Frame", nil, membersView)
+	prof:SetPoint("TOPLEFT"); prof:SetPoint("BOTTOMRIGHT")
+	w.profInner = prof
+	local _, pchild = MakeScroll(prof, -4)
+	w.profContent = pchild
+	if pchild.SetHyperlinksEnabled then pchild:SetHyperlinksEnabled(true) end
+	pchild:SetScript("OnHyperlinkClick", function(_, link, text, button)
+		if SetItemRef then pcall(SetItemRef, link, text, button) end
+	end)
+	w.profText = FS(pchild, "GameFontHighlight")
+	w.profText:SetPoint("TOPLEFT", 4, -4)
+	w.profText:SetWidth(520)
+	w.profText:SetWordWrap(true)
+	w.profText:SetSpacing(4)
+end
+
+local actRows = {}
+local function GetActRow(i)
+	if actRows[i] then return actRows[i] end
+	local r = CreateFrame("Frame", nil, w.actContent)
+	r:SetSize(530, ROW_H)
+	r:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H)
+	r.bg = r:CreateTexture(nil, "BACKGROUND"); r.bg:SetAllPoints()
+	r.bg:SetColorTexture(1, 1, 1, (i % 2 == 0) and 0.04 or 0)
+	r.name = FS(r, "GameFontHighlight"); r.name:SetPoint("LEFT", 4, 0); r.name:SetWidth(170)
+	r.level = FS(r, "GameFontHighlight", "CENTER"); r.level:SetPoint("LEFT", 176, 0); r.level:SetWidth(36)
+	r.last = FS(r, "GameFontHighlightSmall"); r.last:SetPoint("LEFT", 218, 0); r.last:SetWidth(110)
+	r.week = FS(r, "GameFontHighlightSmall", "RIGHT"); r.week:SetPoint("LEFT", 332, 0); r.week:SetWidth(80)
+	r.addon = FS(r, "GameFontHighlightSmall"); r.addon:SetPoint("LEFT", 430, 0); r.addon:SetWidth(90)
+	actRows[i] = r
+	return r
+end
+
+RefreshActivity = function(g, canEdit)
+	local rows = ns.Social.ActivityRows(g)
+	local inactive = 0
+	for i, e in ipairs(rows) do
+		local r = GetActRow(i)
+		local flag = canEdit and ns.Social.IsInactive(g, e.info)
+		if flag then inactive = inactive + 1 end
+		r.name:SetText(ClassColored(e.name, e.class))
+		r.level:SetText(e.level or "")
+		local last = ns.Social.LastSeenText(e.info)
+		r.last:SetText(flag and ("|cffff5050" .. last .. "|r") or last)
+		if e.week and e.week > 0 and ns.PlaytimeShownFor(g, e.key) then
+			r.week:SetText(ns.FormatTime(e.week))
+		else
+			r.week:SetText("|cff808080-|r")
+		end
+		r.addon:SetText(e.hidden and ("|cff999999" .. L["not sharing"] .. "|r") or (e.version and ("|cff60ff60" .. e.version .. "|r") or "|cff999999-|r"))
+		r:Show()
+	end
+	for i = #rows + 1, #actRows do actRows[i]:Hide() end
+	w.actContent:SetHeight(math.max(1, #rows * ROW_H))
+	if canEdit then
+		footerText:SetText(inactive > 0
+			and ("|cffffaa40" .. string.format(inactive == 1 and L["%d member inactive %d+ days"] or L["%d members inactive %d+ days"], inactive, ns.Social.InactiveDays(g)) .. "|r  |cff808080" .. L["(only officers see this; set the days in Guild rules)"] .. "|r")
+			or string.format(L["Nobody inactive for %d+ days."], ns.Social.InactiveDays(g)))
+	else
+		footerText:SetText(L["Last seen comes from the guild roster; play time from Guild Ranks."])
+	end
+	return inactive
+end
+
+RefreshProfessions = function(g)
+	local dir = ns.Social.Directory(g)
+	local out = {}
+	for _, prof in ipairs(dir) do
+		local names = {}
+		for _, m in ipairs(prof.members) do
+			local link = "|Hplayer:" .. m.name .. "|h" .. ClassColored(m.name, m.class) .. "|h"
+			local skill = (m.max > 0 and m.skill >= m.max) and ("|cff40ff40" .. m.skill .. "|r") or ("|cffa0a0a0" .. m.skill .. "|r")
+			names[#names + 1] = link .. " " .. skill
+		end
+		out[#out + 1] = "|cffffd100" .. prof.name .. "|r   " .. table.concat(names, "  ·  ")
+	end
+	if #out == 0 then out[1] = L["No professions shared yet. They appear when guildmates with Guild Ranks log in."] end
+	w.profText:SetText(table.concat(out, "\n"))
+	w.profContent:SetHeight(math.max(1, (w.profText:GetStringHeight() or 200) + 10))
+	footerText:SetText(L["Click a name to whisper them. Green skill = maxed for now."])
+end
+function UI.ProfessionsText() return w.profText and w.profText:GetText() end -- for the automated tests
+function UI.ActivityTexts() -- for the automated tests
+	local out = {}
+	for _, r in ipairs(actRows) do if r:IsShown() then out[#out + 1] = r.name:GetText() .. " | " .. r.last:GetText() .. " | " .. r.week:GetText() end end
+	return out
 end
 
 local function BuildHall()
@@ -1309,6 +1527,9 @@ function ns.Diagnostics()
 			ns.FormatMoney(ns.MetricTotal(today, "loot", g))))
 		P("Players stored in this guild: " .. ns.CountPlayers(g))
 	end
+	if ns.IsTrial() then
+		P("|cffffaa40" .. "This is a trial account: Blizzard doesn't let trial accounts send addon messages, so your guild can't see your stats." .. "|r")
+	end
 	for name in pairs(ns.nameClashes or {}) do
 		P("|cffffaa40" .. string.format("Two guild members share the same name: %s. Guild Ranks can't tell them apart.", name) .. "|r")
 	end
@@ -1395,6 +1616,11 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.ShowRecap()
 	elseif msg == "invite" then
 		ns.Invite.Show()
+	elseif msg == "challenge" then
+		if not ns.VersusUI.ShowDialog() then ns.Print(L["Nobody to challenge right now."]) end
+	elseif msg == "race" then
+		ns.db.view.metric = "race"
+		UI.Show("list")
 	elseif msg == "welcome" then
 		UI.Show("list")
 		ns.Welcome.Show(true)
@@ -1410,6 +1636,8 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.Print("/granks recap  " .. L["show your session recap"])
 		ns.Print("/granks discord  " .. L["copy the results for Discord"])
 		ns.Print("/granks invite  " .. L["invite guildmates to install Guild Ranks"])
+		ns.Print("/granks challenge  " .. L["challenge an online guildmate to a 1v1 race"])
+		ns.Print("/granks race  " .. string.format(L["the race to level %d"], ns.MaxLevel()))
 		ns.Print("/granks bar  " .. L["show or hide the session bar"])
 		ns.Print("/granks weekly  " .. L["show last week's results again"])
 		ns.Print("/granks sync  " .. L["ask the guild for fresh data"])

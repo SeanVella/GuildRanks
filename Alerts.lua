@@ -130,7 +130,7 @@ local function ShowNextCard()
 	card.metric = item.metric
 	card.icon:SetTexture(ICONS[item.metric] or ICONS.score)
 	card.icon:SetDesaturated(not item.won)
-	card.kicker:SetText(item.won and L["New leader  ·  this week"] or "")
+	card.kicker:SetText(item.kicker or (item.won and L["New leader  ·  this week"]) or "")
 	card.title:SetText(item.title)
 	card.sub:SetText(item.sub)
 	if item.won then
@@ -219,6 +219,7 @@ local function GuildChat(msg)
 	if send then pcall(send, msg, "GUILD") end
 end
 A.GuildChat = GuildChat
+A.CanChat = CanChat
 
 ---------------------------------------------------------------------------
 -- Weekly results popup + MVP announcement (first login after the reset)
@@ -468,6 +469,11 @@ ns.OnGuildChanged(function()
 end)
 
 ns.OnLogin(function()
+	if ns.IsTrial() then
+		C_Timer.After(15, function()
+			ns.Print(L["Trial accounts can't send addon messages, so your guild won't see your stats. You'll still see theirs."])
+		end)
+	end
 	local idx, leadIdx = 0, 0
 	C_Timer.NewTicker(8, function()
 		idx = idx % #WATCHED + 1

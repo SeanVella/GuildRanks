@@ -393,6 +393,12 @@ function Client:BuildEnv()
 		return list
 	end
 	env.GetNumGuildMembers = function() return #RosterList() end
+	env.GetGuildRosterLastOnline = function(i)
+		local m = RosterList()[i]
+		if not m or (m.client and m.client.online) then return nil end
+		local days = m.lastDays or 0
+		return 0, 0, math.floor(days), math.floor((days % 1) * 24)
+	end
 	env.GetGuildRosterInfo = function(i)
 		local m = RosterList()[i]
 		if not m then return nil end
@@ -405,6 +411,20 @@ function Client:BuildEnv()
 	env.GetNormalizedRealmName = function() return c.realm end
 	env.GetRealmName = function() return c.realm end
 	env.UnitName = function() return c.name end
+	env.IsTrialAccount = function() return c.trial == true end
+	env.RequestTimePlayed = function()
+		world:After(0.5, function() c:Fire("TIME_PLAYED_MSG", c.played or 360000, 3600) end, c)
+	end
+	-- professions: c.profs = { { name, skill, max, skillLine }, ... }
+	env.GetProfessions = function()
+		local p = c.profs or {}
+		return p[1] and 1 or nil, p[2] and 2 or nil, nil, p[3] and 3 or nil, p[4] and 4 or nil
+	end
+	env.GetProfessionInfo = function(i)
+		local pr = (c.profs or {})[i]
+		if not pr then return nil end
+		return pr[1], 0, pr[2], pr[3], 0, 0, pr[4]
+	end
 	env.UnitClass = function() return c.class, c.class end
 	env.UnitLevel = function() return c.level end
 	env.UnitXP = function() return c.inCombat and Secret() or c.xp end

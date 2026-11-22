@@ -11,6 +11,8 @@
 - 📈 **Your own stats page**: your week compared with last week, personal goals, personal bests and a rival to race.
 - 🔔 **Something to chase**: a card and a sound when you take #1, a heads-up when someone passes you, and weekly titles like *Gold Baron* and *Iron Man*.
 - 🧾 **Session recap**: every login shows what your last session was worth, compared with your usual.
+- 🏁 **Race to 60 and 1v1 challenges**: see who hit max level first, and challenge a guildmate to a 1-hour gold, XP or kills race.
+- 🛠️ **Guild tools**: who has which profession, when everyone was last online, and who's gone inactive (for officers).
 - 💬 **Ready for Discord**: one click copies the week's results to paste in your server.
 - 🔒 **Private and automatic**: no account, no website, nothing to set up.
 
@@ -37,6 +39,8 @@ Want a preview first? Type **/granks demo** to fill the window with sample data.
 - **/granks me**: your stats, goals, bests, rival and titles
 - **/granks recap**: your session recap
 - **/granks invite**: invite guildmates
+- **/granks challenge**: challenge a guildmate to a 1v1 race
+- **/granks race**: who reached level 60 first
 - **/granks discord**: copy results for Discord
 
 Free and open source (MIT). Bugs and ideas: [GitHub Issues](https://github.com/SeanVella/GuildRanks/issues).

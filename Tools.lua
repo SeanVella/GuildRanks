@@ -61,6 +61,7 @@ function T.SelfTest()
 	check(L["Guild roster readable"], not IsInGuild() or ns.rosterReady,
 		string.format("%d/%d", ns.rosterCount or 0, GetNumGuildMembers() or 0) .. (ns.rosterComplete and "" or " (incomplete)"), true)
 	check(L["Realm calendar"], C_DateAndTime and C_DateAndTime.GetCurrentCalendarTime ~= nil, ns.Today())
+	check(L["Account can share stats"], not ns.IsTrial(), ns.IsTrial() and L["trial accounts can't send addon messages"] or "", true)
 	check(L["Addon messages"], C_ChatInfo and C_ChatInfo.SendAddonMessage ~= nil and C_ChatInfo.IsAddonMessagePrefixRegistered
 		and C_ChatInfo.IsAddonMessagePrefixRegistered(ns.PREFIX), ns.PREFIX)
 	local dmgType = Enum and Enum.DamageMeterType and Enum.DamageMeterType.DamageDone

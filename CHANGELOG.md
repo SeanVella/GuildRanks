@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0
+
+New
+- Race to 60: a new chip on the Ranks tab shows who reached max level first, the date and how much
+  play time it took, and for everyone still levelling, their estimated play time to 60 at this
+  week's pace. Reaching 60 shows a card with your place in the guild's race and posts it in guild
+  chat (switch off in Settings > You). `/granks race`.
+- Members > Activity: everyone in the roster with when they were last seen and their play time this
+  week, online members first. Officers also see who has been inactive for 14+ days (the number of
+  days is a guild rule).
+- Members > Professions: who has which profession and skill level, highest first; click a name to
+  whisper them. Shared when guildmates log in and whenever their skill goes up.
+- 1v1 challenges: challenge an online guildmate to a 30-minute or 1-hour race in gold, XP or kills
+  (Challenge button on their player card, or `/granks challenge`). They get an Accept/Decline popup,
+  both of you see a live race bar, and the winner gets a card and a button to post the result in
+  guild chat.
+
+## 1.1.1
+
+Fixes
+- WoW: Forever: guildmates were stored several times, so players appeared more than once, history
+  was split (since 21 November the game reports no realm at all, which started yet another copy)
+  and the weekly popup could say "You weren't ranked" while you were #1. The cause: the realm part
+  of names kept changing, and guildmates see a longer name than the game gives your own character.
+  Players are now identified by name only, your full name is learned from the guild roster (or
+  your own messages), and existing duplicates are merged once on update, keeping the most
+  complete copy of each day. `/granks diag` warns if two guild members share the same name.
+- Trial accounts: Blizzard doesn't let them send addon messages, so they're now told once at login
+  that their guild can't see their stats; `/granks selftest` and `/granks diag` say so too.
+
 ## 1.1.0
 
 New
@@ -57,12 +87,6 @@ Removed
   Use **Copy for Discord** to share results.
 
 Fixes
-- WoW: Forever: guildmates were stored several times (the realm part of names changes between
-  sessions, and guildmates see a longer name than the game gives your own character), so players
-  appeared more than once and the weekly popup could say "You weren't ranked" while you were #1.
-  Players are now identified by name only, your full name is learned from the guild roster (or
-  your own messages), and existing duplicates are merged once on update, keeping the most
-  complete copy of each day. `/granks diag` warns if two guild members share the same name.
 - Gold/h no longer shoots up when you collect Auction House sales or mailed gold: both are now
   off by default (guild rules can switch them on). Guilds whose rules were never saved switch
   to the new default; past numbers are corrected too. The Me tab, session recap, goals and
@@ -91,7 +115,7 @@ Fixes
   (the second request used to be ignored; it is now answered when the minute is up).
 
 Testing
-- Automated simulated-guild test suite (97 tests) on Lua 5.1 and 5.3 in GitHub Actions;
+- Automated simulated-guild test suite (105 tests) on Lua 5.1 and 5.3 in GitHub Actions;
   tests run before every release.
 - Bug report and feature request forms; beta releases via `-beta` tags.
 

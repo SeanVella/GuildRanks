@@ -34,6 +34,9 @@ Bar.lua
 Alerts.lua
 Tools.lua
 Personal.lua
+Race.lua
+Social.lua
+Versus.lua
 UI.lua
 Me.lua
 Panels.lua

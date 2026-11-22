@@ -70,7 +70,7 @@ function SeedDay(client, day, bucket)
 	for k, v in pairs(bucket) do p.all[k] = (p.all[k] or 0) + v end
 end
 
-local files = { "test_tracking", "test_sync", "test_rules", "test_guild", "test_dates", "test_scoring", "test_features", "test_privacy", "test_ui", "test_personal", "test_names" }
+local files = { "test_tracking", "test_sync", "test_rules", "test_guild", "test_dates", "test_scoring", "test_features", "test_privacy", "test_ui", "test_personal", "test_names", "test_social" }
 local filter = arg and arg[1]
 for _, f in ipairs(files) do
 	if not filter or f:find(filter, 1, true) then

@@ -16,11 +16,11 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-97 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+105 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
-session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, WoW: Forever names (shifting realms, longer names, merging old duplicates), lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
+session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, race to 60, member activity, professions, 1v1 challenges, WoW: Forever names (shifting realms, longer names, merging old duplicates), lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
 the in-game tools and every window page. Any Lua error inside the addon fails the
 test.
 
@@ -79,6 +79,10 @@ end)
 - [ ] Session bar, Hall of Fame and weekly challenge/goal banner look right (`/granks demo` helps)
 - [ ] After the weekly reset: weekly popup appears once; MVP posted once in guild chat (if enabled)
 - [ ] `/reload`: everything is still there
+- [ ] Race to 60 chip: players at 60 listed first-to-last with date and play time; others with an estimate
+- [ ] Members > Activity: last seen and hours this week; as an officer, inactive members in red with a count
+- [ ] Members > Professions: your professions and guildmates' appear; a skill-up shows within a minute
+- [ ] Two players: Challenge from the player card, Accept, both see the race bar; the winner can post the result
 - [ ] Each guildmate appears once on the leaderboard, under their full name; you appear as your full name (e.g. "Healya Jamie")
 - [ ] Drink a healing potion or use a healthstone: your Healing doesn't go up; a heal spell does
 - [ ] Die once (not Feign Death): Deaths goes up by exactly 1; Copy for Discord shows "Fewest deaths"

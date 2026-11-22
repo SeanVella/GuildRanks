@@ -93,6 +93,7 @@ function ns.DefaultRules()
 		goalTarget = 0,          -- guild goal target (copper for gold/loot)
 		announceMVP = false,     -- post last week's MVP in guild chat after the reset
 		showPlaytime = true,     -- false: play time is hidden for everyone (column, tooltips, ranking)
+		inactiveDays = 14,       -- officers see members who haven't logged in for this many days
 	}
 end
 
@@ -216,6 +217,16 @@ end
 ---------------------------------------------------------------------------
 -- Names and players
 ---------------------------------------------------------------------------
+-- Trial accounts can't send addon messages on WoW: Forever, so they can't share their stats
+function ns.IsTrial()
+	local function yes(fn)
+		if type(fn) ~= "function" then return false end
+		local ok, v = pcall(fn)
+		return ok and v == true
+	end
+	return yes(_G.IsTrialAccount) or yes(_G.IsVeteranTrialAccount)
+end
+
 function ns.MyRealm()
 	return (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName() or ""):gsub("[%s%-]", "")
 end
@@ -1001,6 +1012,13 @@ function ns.FormatTime(secs)
 	local m = math.floor((secs % 3600) / 60)
 	if h > 0 then return string.format("%dh %02dm", h, m) end
 	return string.format("%dm", m)
+end
+
+-- Long durations: "4d 9h" (a day or more), otherwise like FormatTime
+function ns.FormatDuration(secs)
+	secs = math.floor(secs or 0)
+	if secs >= 86400 then return string.format("%dd %dh", math.floor(secs / 86400), math.floor((secs % 86400) / 3600)) end
+	return ns.FormatTime(secs)
 end
 
 -- "just now", "2 min ago", "3 h ago", "2 days ago"

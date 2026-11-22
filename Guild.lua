@@ -120,6 +120,12 @@ local function ReadRoster()
 				level = ns.Readable(level) and level or nil,
 				class = ns.Readable(classFile) and classFile or nil,
 				online = ns.Readable(online) and online or false,
+				lastDays = (function()
+					if online or not GetGuildRosterLastOnline then return online and 0 or nil end
+					local ok, y, m, d, h = pcall(GetGuildRosterLastOnline, i)
+					if not ok or not (ns.Readable(y) and ns.Readable(d)) then return nil end
+					return (y or 0) * 365 + (m or 0) * 30 + (d or 0) + (h or 0) / 24
+				end)(),
 			}
 			count = count + 1
 		end

@@ -142,3 +142,61 @@ test("Forever: two roster members with the same name are flagged in diagnostics"
 	for i = before + 1, #healya.printed do if healya.printed[i]:find("Joe Mario", 1, true) and healya.printed[i]:find("same name", 1, true) then found = true end end
 	ok(found, "/granks diag mentions it")
 end)
+
+test("Forever: the game stops reporting a realm (21 Nov): old and new entries merge into one guild", function()
+	local function day(play) return { playtime = play, g_loot = play, quests = 1 } end
+	local saved = {
+		guilds = {
+			["Froga-CAMWOWEU5Realm6PvP"] = { name = "Froga", realm = "CAMWOWEU5Realm6PvP", clubId = "215999042",
+				rules = { version = 1794770726, resetDay = 5, minMinutes = 30, gold = {}, excluded = {} }, hidden = {},
+				players = { ["Konrad Mizzi-CAMWOWEU4Realm6PvP"] = { days = { ["2026-11-20"] = day(5000) }, all = {} } } },
+			["Froga-"] = { name = "Froga", realm = "", clubId = "215999042",
+				rules = { version = 0, gold = {}, excluded = {} }, hidden = {},
+				players = { ["Konrad Mizzi"] = { days = { ["2026-11-21"] = day(7000) }, all = {} },
+					["Healya"] = { days = { ["2026-11-21"] = day(3000) }, all = {} } } },
+			["~solo-"] = { name = "No guild", realm = "", solo = true, rules = { version = 0, gold = {}, excluded = {} }, hidden = {},
+				players = { ["Kahk"] = { days = { ["2026-11-21"] = day(600) }, all = {} } } },
+		},
+		chars = { ["Healya"] = { guild = "Froga-" }, ["Healya-CAMWOWEU4Realm6PvP"] = { guild = "Froga-CAMWOWEU5Realm6PvP", personal = { rival = "Konrad Mizzi-CAMWOWEU4Realm6PvP" } } },
+	}
+	local w = NewWorld()
+	w:AddGuild("Froga", "215999042")
+	local healya = w:NewClient({ name = "Healya", surname = "Jamie", guild = "Froga", rank = 1, realm = "", saved = saved })
+	healya:Login()
+	w:Advance(10)
+	local db = healya.ns.db
+	local gkeys = {}
+	for key in pairs(db.guilds) do gkeys[#gkeys + 1] = key end
+	table.sort(gkeys)
+	eq(table.concat(gkeys, ", "), "Froga, ~solo", "one guild entry again")
+	local konrad = db.guilds.Froga.players["Konrad Mizzi"]
+	ok(konrad.days["2026-11-20"] and konrad.days["2026-11-21"], "the days before and after the change are back together")
+	ok(db.guilds.Froga.players["Healya Jamie"], "you, under your full name")
+	eq(db.guilds.Froga.players["Healya"], nil, "no short-name copy left")
+	eq(db.guilds.Froga.rules.version, 1794770726, "the officer's rules kept")
+	eq(db.chars["Healya Jamie"].personal.rival, "Konrad Mizzi", "rival kept")
+end)
+
+test("trial accounts: told once that their stats can't be shared; selftest warns", function()
+	local w = NewWorld()
+	local _, sean = StandardGuild(w)
+	sean:Login()
+	sean.env.IsTrialAccount = function() return true end
+	ok(sean.ns.IsTrial(), "trial detected")
+	sean.ns.Tools.SelfTest()
+	local found = false
+	for _, line in ipairs(sean.printed) do if line:find("trial accounts can't send addon messages", 1, true) then found = true end end
+	ok(found, "selftest says why")
+	local w2 = NewWorld()
+	local _, s2 = StandardGuild(w2)
+	s2.trial = true
+	s2:Login()
+	w2:Advance(20)
+	local told = 0
+	for _, line in ipairs(s2.printed) do if line:find("Trial accounts can't send addon messages", 1, true) then told = told + 1 end end
+	eq(told, 1, "told once at login")
+	local w3 = NewWorld()
+	local _, s3 = StandardGuild(w3)
+	s3:Login(); w3:Advance(20)
+	for _, line in ipairs(s3.printed) do ok(not line:find("Trial accounts", 1, true), "normal accounts aren't told") end
+end)

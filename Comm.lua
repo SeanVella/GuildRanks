@@ -106,6 +106,12 @@ end
 
 function C.QueueLength() return #queue end
 
+-- For other modules: send a message (key: a later message with the same key replaces it in the queue),
+-- handle a message kind, and add extra messages whenever our own stats are sent
+C.Enqueue = Enqueue
+C.handlers = {}         -- kind -> function(g, sender, parts)
+C.extraSenders = {}     -- functions called when our all-time stats are queued
+
 function C.ClearQueue()
 	queue, queued = {}, {}
 end
@@ -233,6 +239,10 @@ function C.QueueAll()
 	local g, p = Me()
 	if not p then return end
 	Enqueue("A", Header("A", p) .. ";" .. EncodeBucket(p.all) .. Flags())
+	for _, fn in ipairs(C.extraSenders) do
+		local ok, err = pcall(fn)
+		if not ok then geterrorhandler()(err) end
+	end
 end
 
 function C.QueueRecent(days)
@@ -260,8 +270,8 @@ function C.QueueRules()
 	Enqueue("C", string.format("C;%d;%s;%d;%d;%s;%d;%d;%s;%s;%s;%s;%s;%s;%d", ns.PROTO, b36(r.version), r.resetDay,
 		r.minMinutes, GoldMask(r), r.managerRank or 1, r.showSpoon and 1 or 0, r.itemValue == "auction" and "a" or "v",
 		r.by or "", r.challengeMetric or "", ns.CleanText(r.challengePrize or "", 40), r.goalMetric or "",
-		b36(r.goalTarget or 0), r.announceMVP and 1 or 0) .. string.format(";%d;%d", ns.ResetHour(g),
-		r.showPlaytime == false and 0 or 1))
+		b36(r.goalTarget or 0), r.announceMVP and 1 or 0) .. string.format(";%d;%d;%d", ns.ResetHour(g),
+		r.showPlaytime == false and 0 or 1, r.inactiveDays or 14))
 	-- Excluded players, in chunks that fit in a message
 	local names, parts, cur = {}, {}, {}
 	for name in pairs(r.excluded) do names[#names + 1] = name end
@@ -404,6 +414,8 @@ ReceiveRules = function(g, sender, parts)
 		ns.InvalidateToday()
 	end
 	r.showPlaytime = parts[17] ~= "0"
+	local inactive = tonumber(parts[18])
+	if inactive and inactive >= 3 and inactive <= 90 then r.inactiveDays = math.floor(inactive) end
 	r.excluded = {}
 	r.excludedFor = version
 	ns.Print(string.format(L["Guild rules updated by %s."], r.by))
@@ -547,6 +559,8 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 		g.players[sender] = nil
 		g.hidden[sender] = true
 		ns.MarkChanged()
+	elseif C.handlers[kind] then
+		C.handlers[kind](g, sender, parts)
 	end
 end)
 
