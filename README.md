@@ -25,6 +25,8 @@ See who's carrying the guild, chase your own records, and crown an MVP every wee
   passes you, and weekly titles like *Gold Baron* or *Iron Man*.
 - 🏁 **Race to 60, 1v1 challenges**: see who hit max level first, and challenge a guildmate to a
   1-hour gold, XP or kills race.
+- ⚔️ **Guild vs Guild**: challenge other guilds to weekly matches across 8 categories, with a
+  live score, a win/loss record and a card when the lead changes.
 - 🛠️ **Guild tools**: who has which profession, when everyone was last online, and who's gone
   inactive (for officers).
 - 💬 **Ready for Discord**: one click copies the week's results to paste in your server.
@@ -66,7 +68,9 @@ the guild. The **Members** tab shows who has it, and **Invite** posts an install
 
 **Is my data private?**
 Your stats are shared only with your guild, inside the game, over WoW's hidden addon channel.
-Nothing goes to a website. You can hide your play time or stop sharing at any time.
+Nothing goes to a website. You can hide your play time or stop sharing at any time. For Guild
+vs Guild, other guilds see only your guild's averages per category (top 5 per hour) and how many
+players are active, never any names. Officers can hide the guild from the league.
 
 **Will it slow my game down?**
 No. Messages are sent about once a second at most, and the window redraws at most once a
@@ -90,6 +94,8 @@ uses the same rules, so everyone sees the same rankings. You can set:
 - a **weekly challenge** (one featured ranking, with an optional prize) and a **guild goal**
 - after how many days a member counts as inactive (officers see who in Members > Activity)
 - whether to show play time, the Wooden spoon, and an MVP announcement in guild chat
+- whether your guild appears in the public **Guild vs Guild** league (only officers can
+  challenge other guilds or end a rivalry)
 
 By default the Guild Master and the first officer rank can change the rules.
 
@@ -103,6 +109,7 @@ By default the Guild Master and the first officer rank can change the rules.
 | `/granks invite` | Post or copy an install message for guildmates |
 | `/granks challenge` | Challenge an online guildmate to a 1v1 race |
 | `/granks race` | Who reached max level first |
+| `/granks league` | Guild vs Guild: your rivals and every guild using Guild Ranks |
 | `/granks discord` | Copy the current view for Discord |
 | `/granks demo` | Preview the window with sample data (`demo off` removes it) |
 
@@ -156,6 +163,8 @@ By default the Guild Master and the first officer rank can change the rules.
 
 - Damage and healing need Blizzard's built-in damage meter. If damage stays at 0, turn it on
   in *Options → Gameplay Enhancements*.
+- Guild vs Guild uses a hidden chat channel to find other guilds. If the game blocks it, use
+  **Challenge by name** (whispers only reach the same faction).
 - In very large guilds, leaderboards can take a few minutes to fill after you log in
   (Blizzard limits addon messages to about one per second).
 
@@ -163,7 +172,8 @@ By default the Guild Master and the first officer rank can change the rules.
 
 - Translations (German, French, Spanish, Italian, Portuguese...).
 - Guild goals with several targets, a monthly Hall of Fame.
-- A **guild vs guild league** across realms: see [the plan](docs/guild-vs-guild-plan.md).
+- More for **Guild vs Guild**: seasons, a league table and cross-faction matches (see
+  [the plan](docs/guild-vs-guild-plan.md)).
 
 Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/GuildRanks/issues).
 
@@ -171,7 +181,7 @@ Ideas and bug reports are welcome in [Issues](https://github.com/SeanVella/Guild
 
 Pull requests are welcome. The issue forms ask for `/granks diag` and `/granks selftest`
 output. Please add or update a test in `tests/` with code changes: an automated simulated
-guild (105 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
+guild (112 scenario tests on Lua 5.1 and 5.3) runs on every push, see [TESTING.md](TESTING.md).
 
 Translations: copy `Locales/enUS.lua` to `Locales/<locale>.lua`, follow the instructions at the
 top, and add the file to `GuildRanks.toc`.

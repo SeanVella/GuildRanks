@@ -120,14 +120,17 @@ local function ShowNextCard()
 		card.sub:SetPoint("BOTTOMLEFT", card.icon, "BOTTOMRIGHT", 10, 0); card.sub:SetJustifyH("LEFT"); card.sub:SetWidth(356)
 		card:SetScript("OnClick", function(self)
 			self:Hide()
-			if self.metric then
+			if self.view then
+				ns.db.view.guild = nil
+				ns.UI.Show(self.view)
+			elseif self.metric then
 				ns.db.view.metric, ns.db.view.period = self.metric, "week"
 				ns.db.view.guild = nil
 				ns.UI.Show("list")
 			end
 		end)
 	end
-	card.metric = item.metric
+	card.metric, card.view = item.metric, item.view
 	card.icon:SetTexture(ICONS[item.metric] or ICONS.score)
 	card.icon:SetDesaturated(not item.won)
 	card.kicker:SetText(item.kicker or (item.won and L["New leader  ·  this week"]) or "")
@@ -283,6 +286,8 @@ function A.WeeklySummaryLines(g)
 		lines[#lines + 1] = string.format(L["Challenge winner (%s): %s"], sum.challenge.metric.short .. "/h", sum.challenge.name)
 			.. (g.rules.challengePrize and (" - " .. g.rules.challengePrize) or "")
 	end
+	local gvg = ns.League and ns.League.LastWeekResults(g) or {}
+	for i = 1, math.min(3, #gvg) do lines[#lines + 1] = L["Guild vs Guild"] .. ": " .. ns.League.ShortResult(gvg[i]) end
 	return lines, sum.from, scores
 end
 
@@ -386,6 +391,16 @@ function A.ShowWeeklyPopup(g)
 	if g.rules.showSpoon then
 		local last = sum.scores[#sum.scores]
 		extra[#extra + 1] = string.format(L["Wooden spoon: %s (%d)"], cc(last.name, last.class), last.score)
+	end
+	local gvg = ns.League and ns.League.LastWeekResults(g) or {}
+	if #gvg > 0 then
+		local parts = {}
+		for i = 1, math.min(3, #gvg) do
+			local item = gvg[i]
+			local col = (item.result == "w" and "|cff40ff40") or (item.result == "l" and "|cffff6060") or "|cffd0d0d0"
+			parts[i] = col .. ns.League.ShortResult(item) .. "|r"
+		end
+		extra[#extra + 1] = L["Guild vs Guild"] .. ": " .. table.concat(parts, ", ") .. (#gvg > 3 and (" +" .. (#gvg - 3)) or "")
 	end
 	popup.extra:SetText(table.concat(extra, "\n"))
 	popup.post:Enable()

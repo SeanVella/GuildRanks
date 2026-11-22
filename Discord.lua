@@ -42,6 +42,19 @@ function ns.BuildDiscordText(g, period)
 			lines[#lines + 1] = string.format(":dart: **%s %s:** %s, %s%s", period == "lastweek" and L["Challenge winner"] or L["Challenge leader"],
 				cmetric.short .. "/h", leader.name, ns.FormatValue(cmetric, leader.value, true, true), prize)
 		end
+		if ns.League and not g.solo and not g.demo then
+			local gvg = {}
+			if period == "lastweek" then
+				for _, item in ipairs(ns.League.LastWeekResults(g)) do gvg[#gvg + 1] = ns.League.ShortResult(item) end
+			elseif period == "week" then
+				local mine = ns.League.Sheet(g)
+				for _, item in ipairs(ns.League.ActiveRivals(g)) do
+					local sc = ns.League.Score(mine, ns.League.TheirSheet(item.name))
+					if sc then gvg[#gvg + 1] = string.format("%s %s-%s", item.name, ns.League.FormatPoints(sc.us), ns.League.FormatPoints(sc.them)) end
+				end
+			end
+			if #gvg > 0 then lines[#lines + 1] = string.format(":crossed_swords: **%s:** %s", L["Guild vs Guild"], table.concat(gvg, " · ")) end
+		end
 		local cur, target, gmetric = ns.GoalProgress(g, period)
 		if cur then
 			lines[#lines + 1] = string.format(":dart: **%s (%s):** %s / %s (%d%%)", L["Guild goal"], gmetric.short,

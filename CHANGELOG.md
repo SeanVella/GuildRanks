@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.0
+
+New
+- Guild vs Guild: a new tab where your guild competes with other guilds. Every guild using Guild
+  Ranks shares a weekly "team sheet": for each of 8 categories (Gold/h, Levels/h, Damage/h,
+  Healing/h, Quests/h, Kills/h, Gathering/h, Crafts/h) the average of its top 5 players per hour
+  of play. Only these averages and the number of active players leave the guild, never names.
+- All guilds: every guild heard this week with a power score (100 = best in every category).
+  Officers press Challenge; an officer of the other guild gets an Accept/Decline popup.
+- Rivals (up to 5): this week's live score (1 point per category won, half for a tie), the
+  category-by-category breakdown, your record (wins, losses, draws) and past weeks. A card when
+  either guild takes the lead. Matches run Wednesday to Wednesday; both guilds need at least 3
+  players with 30+ minutes played for a week to count.
+- Weekly results go into the weekly popup, Copy for Discord and (if the guild posts the MVP)
+  guild chat, once per guild.
+- Challenge by name: works when the public league channel doesn't. Type any member of the other
+  guild who has Guild Ranks (same faction); if they're not an officer they tell you who is.
+- Officers can hide the guild from the league in Settings > Guild rules. `/granks league`.
+
+
 ## 1.2.0
 
 New

@@ -52,6 +52,7 @@ function W.New(opts)
 	world.calendarReady = true
 	world.realmOffset = 0         -- realm time = server time + offset
 	world.items = {}              -- itemID -> sell price
+	world.channels = {}           -- custom chat channel name -> { [client] = true }
 	world.verbose = opts.verbose
 	return world
 end
@@ -124,7 +125,8 @@ end
 ---------------------------------------------------------------------------
 -- Guild channel (with Blizzard's per-prefix throttle)
 ---------------------------------------------------------------------------
-function W:SendAddon(client, prefix, msg, chatType)
+function W:SendAddon(client, prefix, msg, chatType, target)
+	if chatType == "WHISPER" or chatType == "CHANNEL" then return self:SendAddonDirect(client, prefix, msg, chatType, target) end
 	if chatType ~= "GUILD" then return 4 end
 	if #msg > 255 then
 		self.sent[#self.sent + 1] = { from = client.key, msg = msg, result = 2 }
@@ -148,6 +150,40 @@ function W:SendAddon(client, prefix, msg, chatType)
 			-- the sender gets its own message back too, like the real game
 			if other.online and other.guild == guild and other.prefixes[prefix] and (other == client or not other.inInstance) then
 				other:Fire("CHAT_MSG_ADDON", prefix, msg, "GUILD", self:SenderName(client))
+			end
+		end
+	end)
+	return 0
+end
+
+-- Whispers (to any online player of the same faction) and custom channels (world.noChannels: blocked)
+function W:SendAddonDirect(client, prefix, msg, chatType, target)
+	if #msg > 255 then return 2 end
+	if client.inInstance or self.lockdown then return 11 end
+	self.sent[#self.sent + 1] = { from = client.key, msg = msg, result = 0, chatType = chatType, target = target }
+	if chatType == "WHISPER" then
+		local want = tostring(target or ""):match("^([^%-]+)")
+		local to
+		for _, o in ipairs(self.clients) do
+			if o.online and o.fullName == want and (o.faction or "A") == (client.faction or "A") then to = o end
+		end
+		if not to then
+			self:After(0.05, function() client:Fire("CHAT_MSG_SYSTEM", string.format("No player named '%s' is currently playing.", want)) end)
+			return 12
+		end
+		self:After(0.05, function()
+			if to.online and to.prefixes[prefix] then to:Fire("CHAT_MSG_ADDON", prefix, msg, "WHISPER", self:SenderName(client), to.fullName) end
+		end)
+		return 0
+	end
+	if self.noChannels then return 9 end
+	local name = client.channelsById and client.channelsById[target]
+	if not name then return 9 end
+	local members = self.channels[name] or {}
+	self:After(0.05, function()
+		for o in pairs(members) do
+			if o.online and o.prefixes[prefix] and not o.inInstance and o.channelIds and o.channelIds[name] then
+				o:Fire("CHAT_MSG_ADDON", prefix, msg, "CHANNEL", self:SenderName(client), name, 0, o.channelIds[name], name)
 			end
 		end
 	end)
@@ -369,7 +405,7 @@ function Client:BuildEnv()
 	env.C_ChatInfo = {
 		RegisterAddonMessagePrefix = function(p) c.prefixes[p] = true return true end,
 		IsAddonMessagePrefixRegistered = function(p) return c.prefixes[p] == true end,
-		SendAddonMessage = function(p, msg, chatType) return world:SendAddon(c, p, msg, chatType) end,
+		SendAddonMessage = function(p, msg, chatType, target) return world:SendAddon(c, p, msg, chatType, target) end,
 		InChatMessagingLockdown = function() return world.lockdown or false end,
 		SendChatMessage = function(msg, chatType)
 			if chatType == "GUILD" and c.guild then world.chat[#world.chat + 1] = { sender = c.key, msg = msg } end
@@ -412,6 +448,32 @@ function Client:BuildEnv()
 	env.GetRealmName = function() return c.realm end
 	env.UnitName = function() return c.name end
 	env.IsTrialAccount = function() return c.trial == true end
+	-- custom chat channels
+	c.channelIds, c.channelsById = {}, {}
+	env.JoinTemporaryChannel = function(name)
+		if world.noChannels then return nil end
+		world.channels[name] = world.channels[name] or {}
+		world.channels[name][c] = true
+		if not c.channelIds[name] then
+			local id = 5
+			while c.channelsById[id] do id = id + 1 end
+			c.channelIds[name], c.channelsById[id] = id, name
+		end
+		return 1, name
+	end
+	env.GetChannelName = function(name)
+		local id = c.channelIds[name]
+		if id then return id, name end
+		return 0, nil
+	end
+	env.LeaveChannelByName = function(name)
+		local id = c.channelIds[name]
+		if id then c.channelsById[id], c.channelIds[name] = nil, nil end
+		if world.channels[name] then world.channels[name][c] = nil end
+	end
+	env.ChatFrame_AddMessageEventFilter = function(event, fn) c.chatFilters = c.chatFilters or {}; c.chatFilters[#c.chatFilters + 1] = { event = event, fn = fn } end
+	env.ChatFrame_RemoveChannel = function() end
+	env.NUM_CHAT_WINDOWS = 10
 	env.RequestTimePlayed = function()
 		world:After(0.5, function() c:Fire("TIME_PLAYED_MSG", c.played or 360000, 3600) end, c)
 	end

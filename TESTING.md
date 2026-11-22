@@ -16,11 +16,11 @@ Blizzard's real limits:
 - guild roster (online/offline, ranks, incomplete rosters), same-name guilds
 - optional addons: TradeSkillMaster, Auctionator, LibDataBroker/LibDBIcon
 
-105 scenario tests cover tracking (every gold source, XP across level-ups, kills,
+112 scenario tests cover tracking (every gold source, XP across level-ups, kills,
 crafts, loot value, gathering, bosses and runs, damage meter, AFK time), guild
 sync (sharing, relays for offline members, throttle, privacy), guild rules and
 permissions, guild detection, dates, scoring, the Discord text, the Hall of Fame,
-session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, race to 60, member activity, professions, 1v1 challenges, WoW: Forever names (shifting realms, longer names, merging old duplicates), lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
+session bar, alerts, weekly popup, reset hour, play time privacy, sync timing, tabs, ranking chips, rank changes, player cards, online status, personal bests, goals, weekly titles, rival, session recap, race to 60, member activity, professions, 1v1 challenges, guild vs guild (league channel, challenge by name over whispers, hidden guilds, rival sync, weekly results, fake sheets), WoW: Forever names (shifting realms, longer names, merging old duplicates), lead cards, weekly popup sharing, officer invite nudge, first-open welcome, own-spell healing, damage spike protection, deaths, invite, settings for members and officers, welcome, announcements, version notice, integrations,
 the in-game tools and every window page. Any Lua error inside the addon fails the
 test.
 
@@ -92,3 +92,8 @@ end)
 - [ ] After the weekly reset: the popup shows the podium; "Post to guild chat" posts your result once
 - [ ] As an officer with some members missing the addon: the Members tab shows the invite nudge; "Not now" hides it
 - [ ] A new member's first open shows "You're #N in <guild>!" with guildmates' names
+- [ ] Guild vs Guild (two guilds): within ~10 min each guild appears under All guilds (footer says "League channel connected")
+- [ ] An officer presses Challenge; an officer of the other guild gets the popup and accepts; both see each other under Rivals with a score
+- [ ] If All guilds stays empty: Challenge by name with a member of the other guild works; a non-officer replies with their officers' names
+- [ ] Settings > Guild rules > "Hide our guild from the public league": the guild disappears from the other guild's list
+- [ ] After the Wednesday reset: the result is in the weekly popup and Copy for Discord, and posted once in guild chat (if MVP posting is on)

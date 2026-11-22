@@ -649,3 +649,66 @@ function VersusUI.BarText() -- tests
 	return bar.title:GetText() .. " | " .. bar.me.value:GetText() .. " | " .. bar.them.value:GetText()
 end
 function VersusUI.ClickLeft() if bar then bar.left:GetScript("OnClick")(bar.left) end end -- tests
+
+---------------------------------------------------------------------------
+-- Guild vs Guild: the invite popup for officers and the "challenge by name" box
+---------------------------------------------------------------------------
+local LeagueUI = {}
+ns.LeagueUI = LeagueUI
+local leagueInvite, nameDialog
+
+function ns.UI.ShowLeagueInvite(id, from)
+	if not leagueInvite then
+		leagueInvite = Dialog("GuildRanksLeagueInvite", 360, 132)
+		leagueInvite:SetPoint("TOP", 0, -150)
+		leagueInvite.text = H().FS(leagueInvite, "GameFontHighlight", "CENTER")
+		leagueInvite.text:SetPoint("TOP", 0, -22); leagueInvite.text:SetWidth(320); leagueInvite.text:SetWordWrap(true)
+		local yes = H().MakeButton(leagueInvite, L["Accept"], 110, function() ns.League.Answer(leagueInvite.id, true) end)
+		yes:SetPoint("BOTTOMLEFT", 24, 18)
+		local no = H().MakeButton(leagueInvite, L["Decline"], 110, function() ns.League.Answer(leagueInvite.id, false) end)
+		no:SetPoint("BOTTOMRIGHT", -24, 18)
+	end
+	leagueInvite.id = id
+	leagueInvite.text:SetText(string.format(L["%s challenges your guild to a weekly Guild vs Guild rivalry!"], "|cffffd100<" .. from .. ">|r")
+		.. "\n|cff9d9d9d" .. L["Both guilds see each other's top-5 averages per category, never names. Any officer can end it later."] .. "|r")
+	leagueInvite:Show()
+	if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960) end
+end
+function ns.UI.HideLeagueInvite() if leagueInvite then leagueInvite:Hide() end end
+function LeagueUI.InviteText() return leagueInvite and leagueInvite:IsShown() and leagueInvite.text:GetText() or nil end -- tests
+function LeagueUI.ClickInvite(yes) -- tests
+	if leagueInvite and leagueInvite:IsShown() then ns.League.Answer(leagueInvite.id, yes) end
+end
+
+function LeagueUI.ShowNameDialog()
+	if not nameDialog then
+		nameDialog = Dialog("GuildRanksLeagueByName", 340, 150)
+		nameDialog:SetPoint("CENTER", 0, 120)
+		tinsert(UISpecialFrames, "GuildRanksLeagueByName")
+		local x = CreateFrame("Button", nil, nameDialog, "UIPanelCloseButton"); x:SetPoint("TOPRIGHT", -6, -6)
+		local title = H().FS(nameDialog, "GameFontNormalLarge"); title:SetPoint("TOPLEFT", 22, -18); title:SetText(L["Challenge a guild by name"])
+		local hint = H().FS(nameDialog, "GameFontDisableSmall"); hint:SetPoint("TOPLEFT", 22, -42); hint:SetWidth(296); hint:SetWordWrap(true)
+		hint:SetText(L["Type a character in that guild who uses Guild Ranks (same faction). Their officers get the request."])
+		nameDialog.edit = CreateFrame("EditBox", nil, nameDialog, "InputBoxTemplate")
+		nameDialog.edit:SetSize(200, 24)
+		nameDialog.edit:SetPoint("TOPLEFT", 28, -76)
+		nameDialog.edit:SetAutoFocus(true)
+		nameDialog.edit:SetScript("OnEscapePressed", function() nameDialog:Hide() end)
+		nameDialog.edit:SetScript("OnEnterPressed", function() LeagueUI.SendByName() end)
+		nameDialog.send = H().MakeButton(nameDialog, L["Send challenge"], 140, function() LeagueUI.SendByName() end)
+		nameDialog.send:SetPoint("BOTTOMLEFT", 20, 18)
+		local cancel = H().MakeButton(nameDialog, L["Cancel"], 80, function() nameDialog:Hide() end)
+		cancel:SetPoint("BOTTOMRIGHT", -20, 18)
+	end
+	nameDialog.edit:SetText("")
+	nameDialog:Show()
+	return true
+end
+function LeagueUI.SendByName(text)
+	if not nameDialog then return false end
+	local name = strtrim and strtrim(text or nameDialog.edit:GetText() or "") or (text or nameDialog.edit:GetText() or ""):match("^%s*(.-)%s*$")
+	if name == "" then return false end
+	local okay, err = ns.League.Challenge(nil, name)
+	if okay then nameDialog:Hide() elseif err then ns.Print(err) end
+	return okay
+end

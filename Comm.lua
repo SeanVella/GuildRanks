@@ -98,10 +98,11 @@ end
 ---------------------------------------------------------------------------
 -- Send queue (paused inside instances, where addon chat is restricted)
 ---------------------------------------------------------------------------
-local function Enqueue(key, msg)
+-- chatType/target: "GUILD" by default; "WHISPER" + name or "CHANNEL" + channel number for guild vs guild
+local function Enqueue(key, msg, chatType, target)
 	if #queue == 0 then stats.batchStart, stats.batchCount = GetTime(), 0 end
 	if not queued[key] then queue[#queue + 1] = key end
-	queued[key] = { msg = msg, tries = 0 }
+	queued[key] = { msg = msg, tries = 0, chatType = chatType, target = target }
 end
 
 function C.QueueLength() return #queue end
@@ -138,12 +139,14 @@ local function NoteSent(msg)
 	recentSent[msg] = GetTime()
 end
 
-local function SendNow(msg)
-	local ok, res = pcall(C_ChatInfo.SendAddonMessage, ns.PREFIX, msg, "GUILD")
+local function SendNow(msg, chatType, target)
+	local ok, res = pcall(C_ChatInfo.SendAddonMessage, ns.PREFIX, msg, chatType or "GUILD", target)
 	local sent = ok and res ~= false and not (type(res) == "number" and res ~= 0)
-	if sent then NoteSent(msg) end
+	if sent and (chatType or "GUILD") == "GUILD" then NoteSent(msg) end
+	if not sent and chatType and chatType ~= "GUILD" then C.lastDirectError = { chatType = chatType, res = res, at = GetTime() } end
 	return sent
 end
+C.SendNow = SendNow
 
 -- Our own message coming back under a longer name ("Healya Jamie" when UnitName says "Healya")?
 local function IsMyEcho(sender, text)
@@ -161,7 +164,7 @@ local function Pump()
 	local item = queued[key]
 	queued[key] = nil
 	if not item then return end
-	if SendNow(item.msg) then
+	if SendNow(item.msg, item.chatType, item.target) then
 		stats.sent, stats.batchCount = stats.sent + 1, stats.batchCount + 1
 		stats.lastSent = time()
 		local f = stats.full
@@ -172,7 +175,7 @@ local function Pump()
 			stats.lastBatch = { n = stats.batchCount, secs = GetTime() - stats.batchStart, at = time() }
 			stats.batchStart = nil
 		end
-	elseif item.tries < 3 and not queued[key] then
+	elseif item.tries < 3 and not queued[key] and (item.chatType or "GUILD") ~= "WHISPER" then
 		item.tries = item.tries + 1
 		table.insert(queue, 1, key)
 		queued[key] = item
@@ -271,7 +274,7 @@ function C.QueueRules()
 		r.minMinutes, GoldMask(r), r.managerRank or 1, r.showSpoon and 1 or 0, r.itemValue == "auction" and "a" or "v",
 		r.by or "", r.challengeMetric or "", ns.CleanText(r.challengePrize or "", 40), r.goalMetric or "",
 		b36(r.goalTarget or 0), r.announceMVP and 1 or 0) .. string.format(";%d;%d;%d", ns.ResetHour(g),
-		r.showPlaytime == false and 0 or 1, r.inactiveDays or 14))
+		r.showPlaytime == false and 0 or 1, r.inactiveDays or 14) .. ";" .. (r.leagueHidden and "h" or ""))
 	-- Excluded players, in chunks that fit in a message
 	local names, parts, cur = {}, {}, {}
 	for name in pairs(r.excluded) do names[#names + 1] = name end
@@ -416,6 +419,7 @@ ReceiveRules = function(g, sender, parts)
 	r.showPlaytime = parts[17] ~= "0"
 	local inactive = tonumber(parts[18])
 	if inactive and inactive >= 3 and inactive <= 90 then r.inactiveDays = math.floor(inactive) end
+	r.leagueHidden = parts[19] == "h"
 	r.excluded = {}
 	r.excludedFor = version
 	ns.Print(string.format(L["Guild rules updated by %s."], r.by))
@@ -491,11 +495,19 @@ function C.Answer(mode, sender)
 	end)
 end
 
-ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
+ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender, target, _, _, channelName)
 	if prefix ~= ns.PREFIX or not ns.db then return end
-	if not (ns.Readable(text) and ns.Readable(sender)) or channel ~= "GUILD" then return end
+	if not (ns.Readable(text) and ns.Readable(sender)) then return end
 	local g = ns.G()
 	if not g or g.solo then return end
+	if channel ~= "GUILD" then
+		-- only guild vs guild messages come from outside the guild (whispers, the league channel)
+		if (channel == "WHISPER" or channel == "CHANNEL") and text:sub(1, 2) == "G;" and C.leagueHandler then
+			local s = ns.CanonName(sender)
+			if s and s ~= ns.me then C.leagueHandler(g, s, split(text, ";"), channel, channelName or target) end
+		end
+		return
+	end
 	sender = ns.CanonName(sender)
 	if not sender or sender == ns.me then return end
 	if IsMyEcho(sender, text) then

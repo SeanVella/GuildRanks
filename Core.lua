@@ -94,6 +94,7 @@ function ns.DefaultRules()
 		announceMVP = false,     -- post last week's MVP in guild chat after the reset
 		showPlaytime = true,     -- false: play time is hidden for everyone (column, tooltips, ranking)
 		inactiveDays = 14,       -- officers see members who haven't logged in for this many days
+		leagueHidden = false,    -- true: the guild doesn't appear in the public guild vs guild league
 	}
 end
 

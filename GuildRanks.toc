@@ -37,6 +37,7 @@ Personal.lua
 Race.lua
 Social.lua
 Versus.lua
+League.lua
 UI.lua
 Me.lua
 Panels.lua

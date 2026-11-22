@@ -525,6 +525,7 @@ function UI.NudgeText() return w.nudge and w.nudge:IsShown() and w.nudge.text:Ge
 function UI.NudgeClick(which) local b = w.nudge and w.nudge[which]; if b then b:GetScript("OnClick")(b) end end -- for the automated tests
 
 local RefreshActivity, RefreshProfessions -- (Members > Activity and Professions, defined below)
+local RefreshLeague, BuildLeague -- (Guild vs Guild tab, defined below)
 local function RefreshMembers(g)
 	local list = {}
 	local useRoster = g == ns.G() and not g.solo and ns.rosterReady
@@ -602,7 +603,8 @@ local function LoadPending(g)
 		minMinutes = r.minMinutes, managerRank = r.managerRank,
 		showSpoon = r.showSpoon, itemValue = r.itemValue, announceMVP = r.announceMVP,
 		challengeMetric = r.challengeMetric or "", challengePrize = r.challengePrize or "",
-		goalMetric = r.goalMetric or "", goalTarget = r.goalTarget or 0, inactiveDays = r.inactiveDays or 14, gold = {} }
+		goalMetric = r.goalMetric or "", goalTarget = r.goalTarget or 0, inactiveDays = r.inactiveDays or 14,
+		leagueHidden = r.leagueHidden == true, gold = {} }
 	for _, src in ipairs(ns.GOLD_SOURCES) do pend.gold[src] = r.gold[src] end
 	w.pending, w.pendingFor = pend, g
 end
@@ -628,6 +630,7 @@ local function PendingChanged(g)
 		and ((pend.goalMetric or "") == "" or math.floor(pend.goalTarget or 0) == (r.goalTarget or 0))
 		and pend.managerRank == r.managerRank
 		and (pend.inactiveDays or 14) == (r.inactiveDays or 14)
+		and (pend.leagueHidden == true) == (r.leagueHidden == true)
 	for _, src in ipairs(ns.GOLD_SOURCES) do
 		if (pend.gold[src] and true or false) ~= (r.gold[src] and true or false) then same = false end
 	end
@@ -665,6 +668,7 @@ function UI.RulesSummary(g)
 	local gm = ns.METRIC_BY_KEY[r.goalMetric or ""]
 	add(L["Guild goal"], (gm and (r.goalTarget or 0) > 0) and (ns.FormatValue(gm, r.goalTarget, false) .. " " .. gm.short) or L["none"])
 	add(L["Inactive after"], string.format(L["%d days (officers see who in Members > Activity)"], r.inactiveDays or 14))
+	add(L["Guild vs Guild"], r.leagueHidden and L["hidden from the public league"] or L["visible in the public league"])
 	local who
 	for _, o in ipairs(ns.RankChoices()) do if o.value == (r.managerRank or 1) then who = o.text end end
 	lines[#lines + 1] = " "
@@ -727,6 +731,7 @@ local function RefreshSettings(g)
 		w.showPlaytime:SetChecked(pend.showPlaytime)
 		w.spoon:SetChecked(pend.showSpoon)
 		w.announceMVP:SetChecked(pend.announceMVP)
+		w.leagueHidden:SetChecked(pend.leagueHidden)
 		for src, cb in pairs(w.gold) do cb:SetChecked(pend.gold[src]) end
 		UpdateUnsaved()
 	end
@@ -843,13 +848,16 @@ local function BuildSettings()
 	w.itemValue:SetPoint("TOPLEFT", 20, -98)
 	w.spoon = MakeCheck(ed, L["Show the Wooden spoon (last place)"], function(on) w.pending.showSpoon = on; UpdateUnsaved() end,
 		L["A light-hearted award for the lowest Guild score of the week."])
-	w.spoon:SetPoint("TOPLEFT", 300, -80)
+	w.spoon:SetPoint("TOPLEFT", 300, -76)
 	w.announceMVP = MakeCheck(ed, L["Post last week's MVP in guild chat"], function(on) w.pending.announceMVP = on; UpdateUnsaved() end,
 		L["Posted once per week, by the first member online after the reset."])
-	w.announceMVP:SetPoint("TOPLEFT", 300, -102)
+	w.announceMVP:SetPoint("TOPLEFT", 300, -96)
 	w.showPlaytime = MakeCheck(ed, L["Show play time (column and ranking)"], function(on) w.pending.showPlaytime = on; UpdateUnsaved() end,
 		L["Off: play time is hidden for everyone. Per-hour rankings still use it."])
-	w.showPlaytime:SetPoint("TOPLEFT", 300, -124)
+	w.showPlaytime:SetPoint("TOPLEFT", 300, -116)
+	w.leagueHidden = MakeCheck(ed, L["Hide our guild from the public league"], function(on) w.pending.leagueHidden = on; UpdateUnsaved() end,
+		L["Hidden guilds don't appear in Guild vs Guild > All guilds, can't be challenged and pause their rivalries."])
+	w.leagueHidden:SetPoint("TOPLEFT", 300, -136)
 
 	Label(ed, L["Count gold from"], 22, -150)
 	w.gold = {}
@@ -933,6 +941,7 @@ local function BuildSettings()
 		r.goalMetric = (pend.goalMetric ~= "" and pend.goalMetric) or nil
 		r.goalTarget = r.goalMetric and math.max(0, math.floor(pend.goalTarget or 0)) or 0
 		r.inactiveDays = pend.inactiveDays or 14
+		r.leagueHidden = pend.leagueHidden == true
 		if g.solo or ns.IsGuildMaster() then r.managerRank = pend.managerRank end
 		for _, src in ipairs(ns.GOLD_SOURCES) do r.gold[src] = pend.gold[src] and true or false end
 		ns.Comm.PublishRules()
@@ -1033,6 +1042,8 @@ function UI.Refresh()
 		RefreshMembers(g)
 	elseif current == "hall" then
 		RefreshHall(g)
+	elseif current == "league" then
+		RefreshLeague(g)
 	elseif current == "me" then
 		resetText:SetText(ns.ResetDescription(g))
 		footerText:SetText(L["Your own stats, goals and bests. Only titles you choose to show are shared."])
@@ -1394,6 +1405,258 @@ local function BuildHall()
 	w.hallText:SetSpacing(3)
 end
 
+---------------------------------------------------------------------------
+-- Guild vs Guild tab: rivals (this week's score, breakdown, record) and all visible guilds
+---------------------------------------------------------------------------
+local CAT_LABEL = { gold = L["Gold/h"], levels = L["Levels/h"], damage = L["Damage/h"], healing = L["Healing/h"],
+	quests = L["Quests/h"], kills = L["Kills/h"], gathers = L["Gathering/h"], crafts = L["Crafts/h"] }
+local function CatValue(cat, v)
+	if cat == "gold" then return ns.FormatMoney(v) end
+	if cat == "levels" then return string.format("%.2f", v) end
+	if cat == "damage" or cat == "healing" then return ns.FormatNumber(v) end
+	return string.format("%.1f", v)
+end
+
+local leagueRows, dirRows, catRows = {}, {}, {}
+
+local function LeagueChip(parent, text, width, x, onClick)
+	local chip = CreateFrame("Button", nil, parent)
+	chip:SetSize(width, 20)
+	chip:SetPoint("TOPLEFT", x, -2)
+	chip.bg = chip:CreateTexture(nil, "BACKGROUND"); chip.bg:SetAllPoints()
+	chip.text = FS(chip, "GameFontHighlightSmall", "CENTER"); chip.text:SetPoint("CENTER"); chip.text:SetText(text)
+	local hl = chip:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.08)
+	chip.SetSelected = function(self, on)
+		if on then self.bg:SetColorTexture(0.45, 0.36, 0.08, 0.9); self.text:SetTextColor(1, 0.82, 0)
+		else self.bg:SetColorTexture(0.16, 0.16, 0.18, 0.9); self.text:SetTextColor(0.85, 0.82, 0.75) end
+	end
+	chip:SetScript("OnClick", onClick)
+	return chip
+end
+
+BuildLeague = function()
+	local v = CreateFrame("Frame", nil, frame)
+	v:SetPoint("TOPLEFT", 0, -88)
+	v:SetPoint("BOTTOMRIGHT", 0, 56)
+	v:Hide()
+	views.league = v
+	w.leagueChips = {
+		rivals = LeagueChip(v, L["Rivals"], 70, 18, function() ns.db.ui.leagueView = "rivals"; UI.Refresh() end),
+		all = LeagueChip(v, L["All guilds"], 80, 92, function() ns.db.ui.leagueView = "all"; UI.Refresh() end),
+	}
+	w.leagueByName = MakeButton(v, L["Challenge by name"], 140, function() ns.LeagueUI.ShowNameDialog() end)
+	w.leagueByName:SetPoint("TOPRIGHT", -24, 0); w.leagueByName:SetHeight(20)
+	Tip(w.leagueByName, L["Challenge by name"], L["Type the name of any member of the other guild who has Guild Ranks. Works even when the public league channel doesn't."])
+
+	-- Rivals
+	local rv = CreateFrame("Frame", nil, v)
+	rv:SetPoint("TOPLEFT", 0, -26); rv:SetPoint("BOTTOMRIGHT")
+	w.rivalsPane = rv
+	local hdr = CreateFrame("Frame", nil, rv)
+	hdr:SetPoint("TOPLEFT", 18, -2); hdr:SetSize(530, 16)
+	for _, h in ipairs({ { L["Guild"], 4, 200 }, { L["This week"], 210, 110 }, { L["Record"], 330, 90 }, { L["Updated"], 430, 100 } }) do
+		local f = FS(hdr, "GameFontNormalSmall"); f:SetPoint("LEFT", h[2], 0); f:SetWidth(h[3]); f:SetText(h[1])
+	end
+	for i = 1, ns.League.MAX_RIVALS do
+		local r = CreateFrame("Button", nil, rv)
+		r:SetSize(530, ROW_H)
+		r:SetPoint("TOPLEFT", 18, -18 - (i - 1) * ROW_H)
+		r.bg = r:CreateTexture(nil, "BACKGROUND"); r.bg:SetAllPoints()
+		local hl = r:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.08)
+		r.name = FS(r, "GameFontHighlight"); r.name:SetPoint("LEFT", 4, 0); r.name:SetWidth(200)
+		r.score = FS(r, "GameFontHighlightSmall"); r.score:SetPoint("LEFT", 210, 0); r.score:SetWidth(110)
+		r.record = FS(r, "GameFontHighlightSmall"); r.record:SetPoint("LEFT", 330, 0); r.record:SetWidth(90)
+		r.updated = FS(r, "GameFontDisableSmall"); r.updated:SetPoint("LEFT", 430, 0); r.updated:SetWidth(100)
+		r:SetScript("OnClick", function(self) w.leagueSel = self.rival; UI.Refresh() end)
+		leagueRows[i] = r
+	end
+	local line = rv:CreateTexture(nil, "ARTWORK")
+	line:SetPoint("TOPLEFT", 16, -124); line:SetPoint("TOPRIGHT", -16, -124); line:SetHeight(1)
+	line:SetColorTexture(0.35, 0.3, 0.2, 0.8)
+	w.matchTitle = FS(rv, "GameFontNormalLarge", "CENTER"); w.matchTitle:SetPoint("TOP", 0, -134); w.matchTitle:SetWidth(540)
+	w.matchSub = FS(rv, "GameFontDisableSmall", "CENTER"); w.matchSub:SetPoint("TOP", 0, -156); w.matchSub:SetWidth(540)
+	w.endRivalry = MakeButton(rv, L["End rivalry"], 96, function()
+		if w.leagueSel and ns.League.EndRivalry(w.leagueSel) then w.leagueSel = nil; UI.Refresh() end
+	end)
+	w.endRivalry:SetPoint("TOPRIGHT", -24, -132); w.endRivalry:SetHeight(18)
+	for i, cat in ipairs(ns.League.CATS) do
+		local y = -178 - (i - 1) * 22
+		local c = {}
+		c.label = FS(rv, "GameFontNormalSmall"); c.label:SetPoint("TOPLEFT", 22, y); c.label:SetWidth(80); c.label:SetText(CAT_LABEL[cat])
+		c.oursBg = rv:CreateTexture(nil, "ARTWORK"); c.oursBg:SetPoint("TOPLEFT", 104, y - 3); c.oursBg:SetSize(150, 7); c.oursBg:SetColorTexture(0.16, 0.17, 0.2, 1)
+		c.ours = rv:CreateTexture(nil, "OVERLAY"); c.ours:SetPoint("RIGHT", c.oursBg, "RIGHT"); c.ours:SetSize(1, 7); c.ours:SetColorTexture(0.79, 0.64, 0.15, 1)
+		c.result = FS(rv, "GameFontHighlightSmall", "CENTER"); c.result:SetPoint("TOPLEFT", 258, y); c.result:SetWidth(44)
+		c.theirsBg = rv:CreateTexture(nil, "ARTWORK"); c.theirsBg:SetPoint("TOPLEFT", 306, y - 3); c.theirsBg:SetSize(150, 7); c.theirsBg:SetColorTexture(0.16, 0.17, 0.2, 1)
+		c.theirs = rv:CreateTexture(nil, "OVERLAY"); c.theirs:SetPoint("LEFT", c.theirsBg, "LEFT"); c.theirs:SetSize(1, 7); c.theirs:SetColorTexture(0.55, 0.55, 0.58, 1)
+		c.values = FS(rv, "GameFontDisableSmall"); c.values:SetPoint("TOPLEFT", 462, y); c.values:SetWidth(120)
+		catRows[i] = c
+	end
+	w.matchHistory = FS(rv, "GameFontHighlightSmall"); w.matchHistory:SetPoint("TOPLEFT", 22, -360); w.matchHistory:SetWidth(540); w.matchHistory:SetWordWrap(true)
+	w.rivalsEmpty = FS(rv, "GameFontHighlight", "CENTER"); w.rivalsEmpty:SetPoint("TOP", 0, -150); w.rivalsEmpty:SetWidth(500); w.rivalsEmpty:SetWordWrap(true)
+
+	-- All guilds
+	local all = CreateFrame("Frame", nil, v)
+	all:SetPoint("TOPLEFT", 0, -26); all:SetPoint("BOTTOMRIGHT")
+	w.allPane = all
+	local ahdr = CreateFrame("Frame", nil, all)
+	ahdr:SetPoint("TOPLEFT", 18, -2); ahdr:SetSize(530, 16)
+	for _, h in ipairs({ { "#", 0, 24, "RIGHT" }, { L["Guild"], 32, 190 }, { L["Players"], 224, 60, "CENTER" }, { L["Power"], 290, 130 } }) do
+		local f = FS(ahdr, "GameFontNormalSmall", h[4]); f:SetPoint("LEFT", h[2], 0); f:SetWidth(h[3]); f:SetText(h[1])
+	end
+	local _, achild = MakeScroll(all, -20)
+	w.dirContent = achild
+	w.dirEmpty = FS(all, "GameFontHighlight", "CENTER"); w.dirEmpty:SetPoint("TOP", 0, -80); w.dirEmpty:SetWidth(500); w.dirEmpty:SetWordWrap(true)
+end
+
+local function GetDirRow(i)
+	if dirRows[i] then return dirRows[i] end
+	local r = CreateFrame("Frame", nil, w.dirContent)
+	r:SetSize(530, ROW_H)
+	r:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H)
+	r.bg = r:CreateTexture(nil, "BACKGROUND"); r.bg:SetAllPoints()
+	r.rank = FS(r, "GameFontHighlight", "RIGHT"); r.rank:SetPoint("LEFT", 0, 0); r.rank:SetWidth(24)
+	r.name = FS(r, "GameFontHighlight"); r.name:SetPoint("LEFT", 32, 0); r.name:SetWidth(190)
+	r.players = FS(r, "GameFontHighlightSmall", "CENTER"); r.players:SetPoint("LEFT", 224, 0); r.players:SetWidth(60)
+	r.barBg = r:CreateTexture(nil, "ARTWORK"); r.barBg:SetPoint("LEFT", 290, 0); r.barBg:SetSize(96, 6); r.barBg:SetColorTexture(0.16, 0.17, 0.2, 1)
+	r.bar = r:CreateTexture(nil, "OVERLAY"); r.bar:SetPoint("LEFT", r.barBg, "LEFT"); r.bar:SetSize(1, 6); r.bar:SetColorTexture(0.79, 0.64, 0.15, 1)
+	r.power = FS(r, "GameFontHighlightSmall", "RIGHT"); r.power:SetPoint("LEFT", 388, 0); r.power:SetWidth(30)
+	r.challenge = MakeButton(r, L["Challenge"], 86, function(self)
+		local name = self:GetParent().guild
+		local okay, err = ns.League.Challenge(name)
+		if not okay and err then ns.Print(err) end
+		UI.Refresh()
+	end)
+	r.challenge:SetPoint("RIGHT", -4, 0); r.challenge:SetHeight(18)
+	dirRows[i] = r
+	return r
+end
+
+local function RivalScoreText(sc)
+	if not sc then return "|cff808080" .. L["waiting for data"] .. "|r" end
+	local txt = ns.League.FormatPoints(sc.us) .. " - " .. ns.League.FormatPoints(sc.them)
+	if not sc.valid then return "|cff808080" .. txt .. "  " .. L["(not enough players)"] .. "|r" end
+	if sc.us > sc.them then return "|cff40ff40" .. txt .. "  " .. L["lead"] .. "|r" end
+	if sc.us < sc.them then return "|cffff5050" .. txt .. "  " .. L["behind"] .. "|r" end
+	return txt .. "  " .. L["tied"]
+end
+
+RefreshLeague = function(g)
+	local LG = ns.League
+	local sub = ns.db.ui.leagueView or "rivals"
+	for key, chip in pairs(w.leagueChips) do chip:SetSelected(key == sub) end
+	w.rivalsPane:SetShown(sub == "rivals")
+	w.allPane:SetShown(sub == "all")
+	local officer = not g.solo and ns.CanEditRules(g) and g == ns.G()
+	w.leagueByName:SetShown(officer and not g.demo)
+	local week = LG.Week()
+	local status = LG.Status()
+	subtitle:SetText(L["Guild vs Guild"] .. "  ·  " .. string.format(L["league week since %s"], date("%a %d %b", ns.KeyToTime(week) or time())))
+	if g.solo or g.demo or g ~= ns.G() then
+		w.rivalsPane:Hide(); w.allPane:Hide()
+		footerText:SetText(L["Guild vs Guild is for your current guild."])
+		return
+	end
+	local mine = LG.Sheet(g, week)
+	if sub == "rivals" then
+		local rivals = LG.ActiveRivals(g)
+		if w.leagueSel and not LG.IsRival(g, w.leagueSel) then w.leagueSel = nil end
+		w.leagueSel = w.leagueSel or (rivals[1] and rivals[1].name)
+		for i, row in ipairs(leagueRows) do
+			local item = rivals[i]
+			row:SetShown(item ~= nil)
+			if item then
+				row.rival = item.name
+				local theirs = LG.TheirSheet(item.name, week)
+				local sc = theirs and LG.Score(mine, theirs)
+				row.name:SetText(item.name)
+				row.score:SetText(RivalScoreText(sc))
+				local rec = item.info.record or {}
+				row.record:SetText(string.format("%dW %dL %dD", rec.w or 0, rec.l or 0, rec.d or 0))
+				row.updated:SetText(theirs and ns.FormatAgo(theirs.at) or "-")
+				row.bg:SetColorTexture(1, 0.82, 0, (w.leagueSel == item.name) and 0.14 or ((i % 2 == 0) and 0.04 or 0))
+			end
+		end
+		local sel = w.leagueSel
+		local hasSel = sel ~= nil
+		w.rivalsEmpty:SetShown(not hasSel)
+		w.rivalsEmpty:SetText(L["No rival guilds yet."] .. "\n" .. (officer and L["Challenge a guild from All guilds, or with Challenge by name."]
+			or L["Officers can challenge other guilds from All guilds."]))
+		w.matchTitle:SetShown(hasSel); w.matchSub:SetShown(hasSel); w.matchHistory:SetShown(hasSel)
+		w.endRivalry:SetShown(hasSel and officer)
+		for _, c in ipairs(catRows) do for _, el in pairs(c) do el:SetShown(hasSel) end end
+		if hasSel then
+			local theirs = LG.TheirSheet(sel, week)
+			local sc = theirs and LG.Score(mine, theirs)
+			if sc then
+				w.matchTitle:SetText(g.name .. "   |cffffd100" .. LG.FormatPoints(sc.us) .. " - " .. LG.FormatPoints(sc.them) .. "|r   " .. sel)
+			else
+				w.matchTitle:SetText(g.name .. "   |cff808080-|r   " .. sel)
+			end
+			local _, left = ns.NextReset({ rules = { resetDay = 4 } })
+			w.matchSub:SetText(string.format(L["ends in %s  ·  top %d per hour  ·  %d vs %s qualified players (at least %d each)"],
+				left and ns.FormatCountdown(left) or "?", LG.TOP_N, mine.q, theirs and tostring(theirs.q) or "?", LG.MIN_QUALIFIED))
+			for i, c in ipairs(catRows) do
+				local d = sc and sc.cats[i]
+				local a, b = d and d.ours or 0, d and d.theirs or 0
+				local top = math.max(a, b)
+				c.ours:SetWidth(math.max(1, top > 0 and 150 * a / top or 1))
+				c.theirs:SetWidth(math.max(1, top > 0 and 150 * b / top or 1))
+				c.result:SetText(not d and "" or (d.result == "win" and ("|cff40ff40" .. L["win"] .. "|r")) or (d.result == "loss" and ("|cffff5050" .. L["loss"] .. "|r")) or ("|cffa0a0a0" .. L["tie"] .. "|r"))
+				c.values:SetText(d and (CatValue(d.cat, a) .. " " .. L["vs"] .. " " .. CatValue(d.cat, b)) or "")
+			end
+			local hist = {}
+			local r = (g.rivals or {})[sel] or {}
+			for _, h in ipairs(r.history or {}) do
+				local t = ns.KeyToTime(h.week)
+				local word = (h.result == "w" and ("|cff40ff40" .. L["won"] .. "|r")) or (h.result == "l" and ("|cffff5050" .. L["lost"] .. "|r")) or L["drew"]
+				hist[#hist + 1] = (t and date("%d %b", t) or h.week) .. " " .. word .. " " .. LG.FormatPoints(h.us) .. "-" .. LG.FormatPoints(h.them)
+				if #hist >= 6 then break end
+			end
+			w.matchHistory:SetText(#hist > 0 and ("|cff808080" .. L["Past weeks:"] .. "|r " .. table.concat(hist, "  ·  ")) or ("|cff808080" .. L["No finished weeks yet."] .. "|r"))
+		end
+	else
+		local list = LG.Directory(g)
+		local canChallenge = officer and not g.rules.leagueHidden and #LG.ActiveRivals(g) < LG.MAX_RIVALS
+		for i, item in ipairs(list) do
+			local r = GetDirRow(i)
+			r.guild = item.name
+			r.rank:SetText(item.power and (i .. ".") or "")
+			r.name:SetText(item.own and ("|cff40ff40" .. item.name .. "|r") or (item.rival and ("|cffffd100" .. item.name .. "|r") or item.name))
+			r.players:SetText(item.sheet.q .. "/" .. item.sheet.users)
+			r.barBg:SetShown(item.power ~= nil); r.bar:SetShown(item.power ~= nil)
+			r.bar:SetWidth(math.max(1, 96 * (item.power or 0) / 100))
+			r.power:SetText(item.power and tostring(item.power) or "|cff808080-|r")
+			r.challenge:SetShown(canChallenge and not item.own and not item.rival)
+			r.bg:SetColorTexture(1, 1, 1, (i % 2 == 0) and 0.04 or 0)
+			r:Show()
+		end
+		for i = #list + 1, #dirRows do dirRows[i]:Hide() end
+		w.dirContent:SetHeight(math.max(1, #list * ROW_H))
+		w.dirEmpty:SetShown(#list <= 1)
+		w.dirEmpty:SetText(status.channel and L["No other guilds heard yet. Guilds show up within about 10 minutes of a member logging in."]
+			or L["The public league channel isn't available, so other guilds can't be listed here. Officers can still use Challenge by name."])
+	end
+	local parts = {}
+	parts[#parts + 1] = status.channel and (status.channelOK and L["League channel connected"] or L["League channel: messages not getting through"]) or L["League channel unavailable"]
+	parts[#parts + 1] = string.format(L["%d guilds heard this week"], status.known)
+	if g.rules.leagueHidden then parts[#parts + 1] = "|cffffaa40" .. L["your guild is hidden"] .. "|r" end
+	footerText:SetText(table.concat(parts, "  ·  "))
+end
+function UI.LeagueTexts() -- for the automated tests
+	local out = {}
+	for _, r in ipairs(leagueRows) do if r:IsShown() then out[#out + 1] = r.name:GetText() .. " | " .. r.score:GetText() .. " | " .. r.record:GetText() end end
+	return out, w.matchTitle and w.matchTitle:GetText(), w.matchHistory and w.matchHistory:GetText()
+end
+function UI.DirectoryTexts() -- for the automated tests
+	local out = {}
+	for _, r in ipairs(dirRows) do if r:IsShown() then out[#out + 1] = r.name:GetText() .. " | " .. r.power:GetText() .. (r.challenge:IsShown() and " | [Challenge]" or "") end end
+	return out
+end
+function UI.DirectoryChallenge(name) -- for the automated tests
+	for _, r in ipairs(dirRows) do if r:IsShown() and r.guild == name then r.challenge:GetScript("OnClick")(r.challenge) return true end end
+	return false
+end
+
 CreateMain = function()
 	frame = CreateFrame("Frame", "GuildRanksFrame", UIParent, "BackdropTemplate")
 	frame:SetSize(600, 660)
@@ -1446,7 +1709,7 @@ CreateMain = function()
 
 	-- Tabs
 	local x = 16
-	for _, t in ipairs({ { "list", L["Ranks"], 80 }, { "me", L["Me"], 56 }, { "hall", L["Hall of Fame"], 110 }, { "members", L["Members"], 90 }, { "settings", L["Settings"], 90 } }) do
+	for _, t in ipairs({ { "list", L["Ranks"], 76 }, { "me", L["Me"], 50 }, { "hall", L["Hall of Fame"], 100 }, { "members", L["Members"], 80 }, { "league", L["Guild vs Guild"], 112 }, { "settings", L["Settings"], 80 } }) do
 		local view = t[1]
 		local tab = MakeTab(frame, t[2], t[3], function() UI.Show(view) end)
 		tab:SetPoint("TOPLEFT", x, -40)
@@ -1465,6 +1728,7 @@ CreateMain = function()
 	BuildMembers()
 	BuildSettings()
 	BuildHall()
+	BuildLeague()
 	views.me = ns.MeView.Build(frame)
 
 	footerText = FS(frame, "GameFontDisableSmall")
@@ -1618,6 +1882,8 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.Invite.Show()
 	elseif msg == "challenge" then
 		if not ns.VersusUI.ShowDialog() then ns.Print(L["Nobody to challenge right now."]) end
+	elseif msg == "league" or msg == "gvg" then
+		UI.Show("league")
 	elseif msg == "race" then
 		ns.db.view.metric = "race"
 		UI.Show("list")
@@ -1638,6 +1904,7 @@ SlashCmdList.GUILDRANKS = function(msg)
 		ns.Print("/granks invite  " .. L["invite guildmates to install Guild Ranks"])
 		ns.Print("/granks challenge  " .. L["challenge an online guildmate to a 1v1 race"])
 		ns.Print("/granks race  " .. string.format(L["the race to level %d"], ns.MaxLevel()))
+		ns.Print("/granks league  " .. L["Guild vs Guild: your rivals and every guild using Guild Ranks"])
 		ns.Print("/granks bar  " .. L["show or hide the session bar"])
 		ns.Print("/granks weekly  " .. L["show last week's results again"])
 		ns.Print("/granks sync  " .. L["ask the guild for fresh data"])
